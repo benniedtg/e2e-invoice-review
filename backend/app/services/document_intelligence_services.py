@@ -53,7 +53,8 @@ class DocumentIntelligenceSettings(BaseSettings):
 def load_settings() -> DocumentIntelligenceSettings:
   """Load Document Intelligence credentials without exposing validation details."""
   try:
-    return DocumentIntelligenceSettings()
+    # BaseSettings supplies these required fields from .env at runtime.
+    return DocumentIntelligenceSettings()  # pyright: ignore[reportCallIssue]
   except ValidationError:
     raise CliError(
       "Set AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT and "

@@ -60,6 +60,8 @@ The backend can send one local fictional PDF or image invoice to Azure AI Docume
 
 This narrow command-line checkpoint makes the provider data model visible before normalization, persistence, policy, or HTTP orchestration is introduced. It also keeps the first paid or quota-limited provider interaction explicit.
 
+`DocumentIntelligenceSettings` keeps the endpoint and key required at runtime. Its no-argument constructor has a narrow Pylance `reportCallIssue` suppression because `BaseSettings` supplies those fields from `.env`, which static constructor inference cannot see.
+
 ### Command
 
 Store the rotated endpoint and key in ignored `backend/.env`, then run one fictional sample:
