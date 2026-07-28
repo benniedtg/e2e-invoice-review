@@ -54,7 +54,7 @@ Continue with the [online tutorial](https://learn.datalumina.com/docs/invoice-re
 
 ### Outcome
 
-The backend can send one local fictional PDF or image invoice to Azure AI Document Intelligence's `prebuilt-invoice` model and print the complete provider result as formatted JSON.
+The backend can send one local fictional PDF or image invoice to Azure AI Document Intelligence's `prebuilt-invoice` model and save the complete provider result as formatted JSON.
 
 ### Why
 
@@ -72,15 +72,15 @@ uv run --locked --no-sync python app/services/document_intelligence_services.py 
   ../samples/generated/01-en-happy-classic.pdf
 ```
 
-This performs one analyze request for one page. It is free while the Document Intelligence F0 allowance remains; S0 is billed per analyzed page. The command creates no local output file or project-owned cloud resource, so no cleanup command is needed.
+This performs one analyze request for one page. It is free while the Document Intelligence F0 allowance remains; S0 is billed per analyzed page. The command creates `backend/json_extracted/01-en-happy-classic.json`, overwriting that file when the same sample is processed again. The ignored output directory can be deleted when observation is complete; no project-owned cloud resource is created.
 
 ### Observable result
 
-The terminal prints an indented JSON object with `modelId` set to `prebuilt-invoice`, plus the complete `pages`, `documents`, extracted invoice fields, values, and confidence metadata returned by Azure.
+The terminal prints the saved file path. Opening that file shows an indented JSON object with `modelId` set to `prebuilt-invoice`, plus the complete `pages`, `documents`, extracted invoice fields, values, and confidence metadata returned by Azure.
 
 ### Checkpoint
 
 - [ ] `uv run --locked --no-sync ruff check app` passes.
 - [ ] `--help` succeeds without an Azure request.
 - [ ] A missing file fails locally with a concise error.
-- [ ] One fictional sample returns complete `prebuilt-invoice` JSON.
+- [ ] One fictional sample saves complete `prebuilt-invoice` JSON under `backend/json_extracted/`.

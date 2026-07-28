@@ -15,6 +15,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIRECTORY = Path(__file__).resolve().parents[2]
 ENV_FILE = BACKEND_DIRECTORY / ".env"
+JSON_OUTPUT_DIRECTORY = BACKEND_DIRECTORY / "json_extracted"
 INVOICE_MODEL_ID = "prebuilt-invoice"
 MAX_FILE_SIZE_BYTES = 4 * 1024 * 1024
 SUPPORTED_SUFFIXES = frozenset({".jpeg", ".jpg", ".pdf", ".png"})
@@ -101,6 +102,14 @@ def result_to_json(result: AnalyzeResult) -> str:
   return json.dumps(result.as_dict(), indent=2, ensure_ascii=False, default=str)
 
 
+def save_result(invoice_path: Path, result: AnalyzeResult) -> Path:
+  """Save the complete Azure result beside the backend learning surface."""
+  JSON_OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+  output_path = JSON_OUTPUT_DIRECTORY / f"{invoice_path.stem}.json"
+  output_path.write_text(f"{result_to_json(result)}\n", encoding="utf-8")
+  return output_path
+
+
 def build_parser() -> argparse.ArgumentParser:
   """Create the command-line argument parser."""
   parser = argparse.ArgumentParser(
@@ -117,6 +126,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     invoice_path = validate_invoice_path(args.invoice)
     settings = load_settings()
     result = analyze_invoice(invoice_path, settings)
+    output_path = save_result(invoice_path, result)
   except AzureError:
     print("Error: Azure Document Intelligence request failed.", file=sys.stderr)
     return 1
@@ -124,7 +134,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"Error: {exc}", file=sys.stderr)
     return 1
 
-  print(result_to_json(result))
+  print(f"Saved full extraction to {output_path}")
   return 0
 
 
