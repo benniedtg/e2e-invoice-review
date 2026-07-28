@@ -50,37 +50,46 @@ cp frontend/.env.example frontend/.env
 
 Continue with the [online tutorial](https://learn.datalumina.com/docs/invoice-review).
 
-## Document Intelligence invoice CLI
+## Document Intelligence invoice and receipt CLI
 
 ### Outcome
 
-The backend can send one local fictional PDF or image invoice to Azure AI Document Intelligence's `prebuilt-invoice` model and save the complete provider result as formatted JSON.
+The backend can send one local fictional PDF or image to Azure AI Document Intelligence's `prebuilt-invoice` or `prebuilt-receipt` model. It saves both the complete provider result and a normalized Pydantic invoice or receipt.
 
 ### Why
 
-This narrow command-line checkpoint makes the provider data model visible before normalization, persistence, policy, or HTTP orchestration is introduced. It also keeps the first paid or quota-limited provider interaction explicit.
+This narrow command-line checkpoint keeps the provider payload visible while introducing the provider-independent data shape used by later review work. Azure SDK types remain inside `app/providers/azure_document_intelligence.py`; `app/schemas/invoice/` and `app/schemas/receipt/` contain strict normalized models with typed values, original OCR content, and confidence.
 
-`DocumentIntelligenceSettings` keeps the endpoint and key required at runtime. Its no-argument constructor has a narrow Pylance `reportCallIssue` suppression because `BaseSettings` supplies those fields from `.env`, which static constructor inference cannot see.
+`DocumentIntelligenceSettings` lives in `app/config.py` and keeps the endpoint and key required at runtime. Its no-argument constructor has a narrow Pylance `reportCallIssue` suppression because `BaseSettings` supplies those fields from `.env`, which static constructor inference cannot see.
 
 ### Command
 
-Store the rotated endpoint and key in ignored `backend/.env`, then run one fictional sample:
+Store the rotated endpoint and key in ignored `backend/.env`, then run one invoice and one receipt experiment:
 
 ```bash
 cd backend
 uv run --locked --no-sync python app/services/document_intelligence_services.py \
-  ../samples/generated/01-en-happy-classic.pdf
+  --document-type invoice \
+  ../samples/generated/09-nl-missing-po.pdf
+
+uv run --locked --no-sync python app/services/document_intelligence_services.py \
+  --document-type receipt \
+  ../samples/generated/13-nl-fuel-receipt.png
 ```
 
-This performs one analyze request for one page. It is free while the Document Intelligence F0 allowance remains; S0 is billed per analyzed page. The command creates `backend/json_extracted/01-en-happy-classic.json`, overwriting that file when the same sample is processed again. The ignored output directory can be deleted when observation is complete; no project-owned cloud resource is created.
+These commands perform two analyze requests across two pages. They are free while the Document Intelligence F0 allowance remains; S0 is billed per analyzed page. No project-owned cloud resource is created. The ignored observation files remain available until `backend/json_extracted/` is deleted locally.
 
 ### Observable result
 
-The terminal prints the saved file path. Opening that file shows an indented JSON object with `modelId` set to `prebuilt-invoice`, plus the complete `pages`, `documents`, extracted invoice fields, values, and confidence metadata returned by Azure.
+The terminal prints two saved paths per document. `<stem>.json` contains the complete Azure payload. `<stem>.normalized.json` contains the strict Pydantic model with snake-case fields, typed dates and decimal money, OCR evidence, and confidence.
+
+The missing-PO invoice has `purchase_order: null`. The Dutch fuel receipt uses `document_type: "receipt"` and maps merchant, transaction, item, payment, tax, and total fields independently from the invoice schema.
 
 ### Checkpoint
 
 - [ ] `uv run --locked --no-sync ruff check app` passes.
 - [ ] `--help` succeeds without an Azure request.
 - [ ] A missing file fails locally with a concise error.
-- [ ] One fictional sample saves complete `prebuilt-invoice` JSON under `backend/json_extracted/`.
+- [ ] The saved happy invoice maps offline with four line items and one tax detail.
+- [ ] The missing-PO invoice saves valid raw and normalized invoice JSON.
+- [ ] The fuel receipt saves valid raw and normalized receipt JSON.
