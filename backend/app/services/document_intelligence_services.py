@@ -10,7 +10,7 @@ from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.documentintelligence.models import AnalyzeResult
 from azure.core.credentials import AzureKeyCredential
 from azure.core.exceptions import AzureError
-from pydantic import Field, SecretStr, ValidationError
+from pydantic import AnyUrl, Field, SecretStr, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIRECTORY = Path(__file__).resolve().parents[2]
@@ -33,14 +33,21 @@ class DocumentIntelligenceSettings(BaseSettings):
     extra="ignore",
   )
 
-  endpoint: str = Field(
-    min_length=1,
+  endpoint: AnyUrl = Field(
     validation_alias="AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
   )
   key: SecretStr = Field(
     min_length=1,
     validation_alias="AZURE_DOCUMENT_INTELLIGENCE_KEY",
   )
+
+  @field_validator("endpoint")
+  @classmethod
+  def require_https_endpoint(cls, endpoint: AnyUrl) -> AnyUrl:
+    """Accept only well-formed HTTPS provider endpoints."""
+    if endpoint.scheme != "https":
+      raise ValueError("Document Intelligence endpoint must use HTTPS.")
+    return endpoint
 
 
 def load_settings() -> DocumentIntelligenceSettings:
@@ -80,7 +87,7 @@ def analyze_invoice(
   """Submit one local invoice to Azure's prebuilt invoice model."""
   credential = AzureKeyCredential(settings.key.get_secret_value())
   with DocumentIntelligenceClient(
-    endpoint=settings.endpoint,
+    endpoint=str(settings.endpoint),
     credential=credential,
   ) as client:
     with invoice_path.open("rb") as invoice:

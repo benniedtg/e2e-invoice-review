@@ -74,7 +74,7 @@ This performs one analyze request for one page. It is free while the Document In
 
 ### Observable result
 
-The terminal prints an indented JSON object with `model_id` set to `prebuilt-invoice`, plus the complete `pages`, `documents`, extracted invoice fields, values, and confidence metadata returned by Azure.
+The terminal prints an indented JSON object with `modelId` set to `prebuilt-invoice`, plus the complete `pages`, `documents`, extracted invoice fields, values, and confidence metadata returned by Azure.
 
 ### Checkpoint
 
