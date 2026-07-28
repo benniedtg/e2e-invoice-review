@@ -49,3 +49,36 @@ cp frontend/.env.example frontend/.env
 - [ ] The health endpoint and starter screen load locally.
 
 Continue with the [online tutorial](https://learn.datalumina.com/docs/invoice-review).
+
+## Document Intelligence invoice CLI
+
+### Outcome
+
+The backend can send one local fictional PDF or image invoice to Azure AI Document Intelligence's `prebuilt-invoice` model and print the complete provider result as formatted JSON.
+
+### Why
+
+This narrow command-line checkpoint makes the provider data model visible before normalization, persistence, policy, or HTTP orchestration is introduced. It also keeps the first paid or quota-limited provider interaction explicit.
+
+### Command
+
+Store the rotated endpoint and key in ignored `backend/.env`, then run one fictional sample:
+
+```bash
+cd backend
+uv run --locked --no-sync python app/services/document_intelligence_services.py \
+  ../samples/generated/01-en-happy-classic.pdf
+```
+
+This performs one analyze request for one page. It is free while the Document Intelligence F0 allowance remains; S0 is billed per analyzed page. The command creates no local output file or project-owned cloud resource, so no cleanup command is needed.
+
+### Observable result
+
+The terminal prints an indented JSON object with `model_id` set to `prebuilt-invoice`, plus the complete `pages`, `documents`, extracted invoice fields, values, and confidence metadata returned by Azure.
+
+### Checkpoint
+
+- [ ] `uv run --locked --no-sync ruff check app` passes.
+- [ ] `--help` succeeds without an Azure request.
+- [ ] A missing file fails locally with a concise error.
+- [ ] One fictional sample returns complete `prebuilt-invoice` JSON.
