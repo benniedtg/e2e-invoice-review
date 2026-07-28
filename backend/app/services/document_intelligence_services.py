@@ -109,7 +109,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     invoice_path = validate_invoice_path(args.invoice)
     settings = load_settings()
     result = analyze_invoice(invoice_path, settings)
-  except (AzureError, CliError, OSError) as exc:
+  except AzureError:
+    print("Error: Azure Document Intelligence request failed.", file=sys.stderr)
+    return 1
+  except (CliError, OSError) as exc:
     print(f"Error: {exc}", file=sys.stderr)
     return 1
 
