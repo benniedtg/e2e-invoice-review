@@ -320,12 +320,17 @@ def _number_field(
   if field is None:
     return None
   value = field.get("valueNumber")
+  is_percentage = False
   if value is None:
     content = _content(field)
-    value = content.rstrip("%").strip() if content else None
+    is_percentage = bool(content and content.rstrip().endswith("%"))
+    value = content.rstrip().rstrip("%").strip() if content else None
   if value is None:
     return None
-  return _wrap(field, _decimal(value, name), name)
+  normalized = _decimal(value, name)
+  if is_percentage:
+    normalized /= Decimal("100")
+  return _wrap(field, normalized, name)
 
 
 def _money_field(

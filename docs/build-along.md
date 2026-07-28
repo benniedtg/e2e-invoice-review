@@ -79,11 +79,38 @@ uv run --locked --no-sync python app/services/document_intelligence_services.py 
 
 These commands perform two analyze requests across two pages. They are free while the Document Intelligence F0 allowance remains; S0 is billed per analyzed page. No project-owned cloud resource is created. The ignored observation files remain available until `backend/json_extracted/` is deleted locally.
 
+Map the previously saved happy-invoice payload without another Azure request:
+
+```bash
+uv run --locked --no-sync python -c '
+import json
+from pathlib import Path
+from app.providers.azure_document_intelligence import map_document
+from app.schemas import DocumentType
+
+raw = json.loads(Path("json_extracted/01-en-happy-classic.json").read_text())
+document = map_document(raw, DocumentType.INVOICE)
+assert len(document.items) == 4
+assert len(document.tax_details) == 1
+print("offline invoice mapping: passed")
+'
+```
+
+After observation, remove only the two live experiment outputs with:
+
+```bash
+rm -f \
+  json_extracted/09-nl-missing-po.json \
+  json_extracted/09-nl-missing-po.normalized.json \
+  json_extracted/13-nl-fuel-receipt.json \
+  json_extracted/13-nl-fuel-receipt.normalized.json
+```
+
 ### Observable result
 
 The terminal prints two saved paths per document. `<stem>.json` contains the complete Azure payload. `<stem>.normalized.json` contains the strict Pydantic model with snake-case fields, typed dates and decimal money, OCR evidence, and confidence.
 
-The missing-PO invoice has `purchase_order: null`. The Dutch fuel receipt uses `document_type: "receipt"` and maps merchant, transaction, item, payment, tax, and total fields independently from the invoice schema.
+The missing-PO invoice has `purchase_order: null`. The Dutch fuel receipt uses `document_type: "receipt"` and maps merchant, transaction, item, tax, and total fields independently from the invoice schema. Its `payments` list is empty because Azure returned no `Payments` field for this sample.
 
 ### Checkpoint
 
