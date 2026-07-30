@@ -120,3 +120,47 @@ The missing-PO invoice has `purchase_order: null`. The Dutch fuel receipt uses `
 - [ ] The saved happy invoice maps offline with four line items and one tax detail.
 - [ ] The missing-PO invoice saves valid raw and normalized invoice JSON.
 - [ ] The fuel receipt saves valid raw and normalized receipt JSON.
+
+## Azure OpenAI text prompt CLI
+
+### Outcome
+
+The backend can send one text prompt to the Azure OpenAI Responses API and print the returned text. This first checkpoint deliberately accepts text only; invoice and receipt input remain outside the service until the text flow is approved.
+
+### Why
+
+The narrow command proves endpoint, API-key, deployment, and Responses API connectivity before document review is introduced. Azure OpenAI SDK types remain inside `app/providers/azure_openai.py`, while `app/services/azure_openai_service.py` handles only command-line input and output.
+
+`AzureOpenAISettings` loads `AZURE_OPENAI_ENDPOINT` and `AZURE_OPENAI_API_KEY` from ignored `backend/.env`. The deployment name `gpt-5.6-terra` is intentionally fixed in the provider adapter instead of being configurable through the environment.
+
+### Command
+
+Store the endpoint and a rotated API key in ignored `backend/.env`, then run one short experiment:
+
+```bash
+cd backend
+uv run --locked --no-sync python app/services/azure_openai_service.py \
+  "What is the capital of Vietnam? Reply with only the city name."
+```
+
+This command makes one token-metered Azure OpenAI request. It sets `store=False`, so the application does not request response storage. It creates no project-owned cloud resource and writes no local output file; there is nothing to clean up after the experiment.
+
+The endpoint must use HTTPS. It can be the Azure resource root, a Foundry project endpoint ending in `/api/projects/<project-name>`, or the full `/openai/v1/` base URL. The provider adapter normalizes every supported form using the routes in the [Microsoft Foundry Responses API documentation](https://learn.microsoft.com/en-us/rest/api/microsoft-foundry/aiproject).
+
+### Observable result
+
+The terminal prints the generated text with an `answer:` prefix:
+
+```text
+answer: Hanoi
+```
+
+Blank prompts and invalid or missing configuration fail locally with a concise error. Provider error details and secrets are not printed.
+
+### Checkpoint
+
+- [ ] `uv run --locked --no-sync ruff check app` passes.
+- [ ] `azure_openai_service.py --help` succeeds without an Azure request.
+- [ ] A blank prompt fails without an Azure request.
+- [ ] An invalid endpoint is rejected without exposing its value or the API key.
+- [ ] One short live text prompt prints a non-empty `answer:` response.
