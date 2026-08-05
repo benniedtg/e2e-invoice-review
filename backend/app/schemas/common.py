@@ -16,7 +16,7 @@ class DocumentType(StrEnum):
 class StrictSchema(BaseModel):
   """Base configuration shared by normalized document schemas."""
 
-  model_config = ConfigDict(extra="forbid")
+  model_config = ConfigDict(extra="forbid", frozen=True)
 
 
 class ExtractedField[T](StrictSchema):

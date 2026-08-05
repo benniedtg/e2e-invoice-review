@@ -54,6 +54,6 @@ class ReceiptDocument(StrictSchema):
   total_tax: ExtractedField[Money] | None = None
   total: ExtractedField[Money] | None = None
   tip: ExtractedField[Money] | None = None
-  payments: list[ReceiptPayment] = Field(default_factory=list)
-  tax_details: list[ReceiptTaxDetail] = Field(default_factory=list)
-  items: list[ReceiptItem] = Field(default_factory=list)
+  payments: tuple[ReceiptPayment, ...] = ()
+  tax_details: tuple[ReceiptTaxDetail, ...] = ()
+  items: tuple[ReceiptItem, ...] = ()

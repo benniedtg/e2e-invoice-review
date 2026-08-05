@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-surface: oklch(98% 0.005 260);
+  --color-raised: oklch(100% 0 0);
+  --color-ink: oklch(25% 0.02 260);
+  --color-muted: oklch(55% 0.02 260);
+  --color-line: oklch(91% 0.01 260);
+  --color-accent: oklch(52% 0.16 260);
+}
+
+body {
+  min-width: 20rem;
+  background-color: var(--color-surface);
+  color: var(--color-ink);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}

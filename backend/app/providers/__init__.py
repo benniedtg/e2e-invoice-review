@@ -1,4 +1,5 @@
 from app.providers.azure_document_intelligence import (
+  AzureDocumentIntelligenceProvider,
   DocumentIntelligenceError,
   DocumentMappingError,
   analyze_document,
@@ -7,15 +8,24 @@ from app.providers.azure_document_intelligence import (
 from app.providers.azure_openai import (
   AZURE_OPENAI_MODEL,
   AzureOpenAIError,
-  generate_text,
+  AzureOpenAIProvider,
+)
+from app.providers.azure_openai_correction_email import (
+  AzureOpenAICorrectionEmailDrafter,
+)
+from app.providers.azure_openai_document_review import (
+  AzureOpenAIDocumentReviewer,
 )
 
 __all__ = [
   "AZURE_OPENAI_MODEL",
+  "AzureDocumentIntelligenceProvider",
+  "AzureOpenAICorrectionEmailDrafter",
+  "AzureOpenAIDocumentReviewer",
   "AzureOpenAIError",
+  "AzureOpenAIProvider",
   "DocumentIntelligenceError",
   "DocumentMappingError",
   "analyze_document",
-  "generate_text",
   "map_document",
 ]

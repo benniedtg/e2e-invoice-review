@@ -4,8 +4,6 @@ This is the clean starter for an end-to-end invoice and receipt review applicati
 
 > You are on `main`, the learner starter. Active work is visible on `development`; the reviewed finished application is on `solution`.
 
-Tutorial: <https://learn.datalumina.com/docs/invoice-review>
-
 ## What is included
 
 - The client brief and target architecture

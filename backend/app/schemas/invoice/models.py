@@ -60,6 +60,6 @@ class InvoiceDocument(StrictSchema):
   total_tax: ExtractedField[Money] | None = None
   invoice_total: ExtractedField[Money] | None = None
   amount_due: ExtractedField[Money] | None = None
-  payment_details: list[PaymentDetail] = Field(default_factory=list)
-  tax_details: list[InvoiceTaxDetail] = Field(default_factory=list)
-  items: list[InvoiceItem] = Field(default_factory=list)
+  payment_details: tuple[PaymentDetail, ...] = ()
+  tax_details: tuple[InvoiceTaxDetail, ...] = ()
+  items: tuple[InvoiceItem, ...] = ()

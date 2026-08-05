@@ -4,10 +4,12 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
   "azure-ai-documentintelligence==1.0.2",
+  "azure-core[aio]==1.41.0",
   "azure-identity==1.25.3",
   "fastapi==0.139.0",
   "openai==2.45.0",
   "pydantic==2.13.4",
+  "pydantic-ai-slim[openai]==2.14.1",
   "pydantic-settings==2.14.2",
   "python-multipart==0.0.32",
   "python-stdnum==2.2",

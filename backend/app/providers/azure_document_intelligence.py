@@ -5,8 +5,9 @@ from datetime import date as Date
 from datetime import datetime as DateTime
 from datetime import time as Time
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.core.credentials import AzureKeyCredential
@@ -42,21 +43,59 @@ class DocumentMappingError(DocumentIntelligenceError):
   """The provider result could not be normalized."""
 
 
+class AzureDocumentIntelligenceProvider:
+  """Own Azure Document Intelligence configuration and normalization."""
+
+  def __init__(self, settings: DocumentIntelligenceSettings) -> None:
+    self._settings = settings
+
+  def analyze(
+    self,
+    document_bytes: bytes,
+    document_type: DocumentType,
+  ) -> dict[str, Any]:
+    """Analyze in-memory document bytes with the selected prebuilt model."""
+    with BytesIO(document_bytes) as document:
+      return _analyze_document_body(document, document_type, self._settings)
+
+  def extract(
+    self,
+    document_bytes: bytes,
+    document_type: DocumentType,
+  ) -> NormalizedDocument:
+    """Analyze and normalize one invoice or receipt."""
+    document = map_document(self.analyze(document_bytes, document_type), document_type)
+    if document.document_type != document_type:
+      raise DocumentMappingError(
+        "Normalized document type does not match the requested Azure model."
+      )
+    return document
+
+
 def analyze_document(
   path: Path,
   document_type: DocumentType,
   settings: DocumentIntelligenceSettings,
 ) -> dict[str, Any]:
   """Analyze one document and return its serializable Azure result."""
+  with path.open("rb") as document:
+    return _analyze_document_body(document, document_type, settings)
+
+
+def _analyze_document_body(
+  body: BinaryIO,
+  document_type: DocumentType,
+  settings: DocumentIntelligenceSettings,
+) -> dict[str, Any]:
+  """Send one document stream and contain all Azure SDK values."""
   credential = AzureKeyCredential(settings.key.get_secret_value())
   try:
     with DocumentIntelligenceClient(
       endpoint=str(settings.endpoint),
       credential=credential,
     ) as client:
-      with path.open("rb") as document:
-        poller = client.begin_analyze_document(MODEL_IDS[document_type], body=document)
-        return poller.result().as_dict()
+      poller = client.begin_analyze_document(MODEL_IDS[document_type], body=body)
+      return poller.result().as_dict()
   except AzureError:
     raise DocumentIntelligenceError(
       "Azure Document Intelligence request failed."
@@ -114,22 +153,22 @@ def _map_invoice(
     total_tax=total_tax,
     invoice_total=invoice_total,
     amount_due=amount_due,
-    payment_details=[
+    payment_details=tuple(
       PaymentDetail(
         iban=_string_field(item, "IBAN"),
         swift=_string_field(item, "SWIFT"),
         bank_account_number=_string_field(item, "BankAccountNumber"),
       )
       for item in _object_values(fields, "PaymentDetails")
-    ],
-    tax_details=[
+    ),
+    tax_details=tuple(
       InvoiceTaxDetail(
         amount=_money_field(item, "Amount"),
         rate=_string_field(item, "Rate"),
       )
       for item in _object_values(fields, "TaxDetails")
-    ],
-    items=[_map_invoice_item(item) for item in _object_values(fields, "Items")],
+    ),
+    items=tuple(_map_invoice_item(item) for item in _object_values(fields, "Items")),
   )
 
 
@@ -169,14 +208,14 @@ def _map_receipt(
     total_tax=total_tax,
     total=total,
     tip=tip,
-    payments=[
+    payments=tuple(
       ReceiptPayment(
         method=_string_field(item, "Method"),
         amount=_money_field(item, "Amount"),
       )
       for item in _object_values(fields, "Payments")
-    ],
-    tax_details=[
+    ),
+    tax_details=tuple(
       ReceiptTaxDetail(
         amount=_money_field(item, "Amount"),
         rate=_number_field(item, "Rate"),
@@ -184,8 +223,8 @@ def _map_receipt(
         description=_string_field(item, "Description"),
       )
       for item in _object_values(fields, "TaxDetails")
-    ],
-    items=[_map_receipt_item(item) for item in _object_values(fields, "Items")],
+    ),
+    items=tuple(_map_receipt_item(item) for item in _object_values(fields, "Items")),
   )
 
 

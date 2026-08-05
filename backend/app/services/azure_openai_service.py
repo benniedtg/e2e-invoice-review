@@ -12,7 +12,7 @@ if str(BACKEND_DIRECTORY) not in sys.path:
 from app.config import ConfigurationError, load_azure_openai_settings  # noqa: E402
 from app.providers.azure_openai import (  # noqa: E402
   AzureOpenAIError,
-  generate_text,
+  AzureOpenAIProvider,
 )
 
 
@@ -46,7 +46,8 @@ def main(argv: Sequence[str] | None = None) -> int:
   try:
     prompt = validate_prompt(args.prompt)
     settings = load_azure_openai_settings()
-    answer = generate_text(prompt, settings)
+    provider = AzureOpenAIProvider(settings)
+    answer = provider.generate_text(prompt)
   except (CliError, ConfigurationError, AzureOpenAIError) as exc:
     print(f"Error: {exc}", file=sys.stderr)
     return 1
