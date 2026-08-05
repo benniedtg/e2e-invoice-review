@@ -12,3 +12,4 @@ backend/json_extracted/
 samples/sample-invoice.pdf
 frontend/node_modules/
 frontend/dist/
+backend/test.py
