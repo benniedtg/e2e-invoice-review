@@ -273,6 +273,9 @@ export interface DocumentSummary {
   document_type: 'invoice' | 'receipt' | null
   vendor_name: string | null
   invoice_number: string | null
+  document_date: string | null
+  total_amount: DecimalString | null
+  currency: string | null
   duplicate_of_id: string | null
   is_valid: boolean | null
 }
@@ -309,6 +312,48 @@ export interface DocumentResponse {
   result: PipelineResult
 }
 
+export type QueryIntent = 'search' | 'unsupported'
+export type QueryAggregate = 'list' | 'count' | 'total'
+export type QueryGroup = 'none' | 'gl_account' | 'vendor' | 'status' | 'document_type'
+
+/** The typed filter the model proposed for one question, after local validation. */
+export interface DocumentQuery {
+  intent: QueryIntent
+  statuses: ReviewStatus[]
+  document_types: ('invoice' | 'receipt')[]
+  vendor_text: string | null
+  date_from: string | null
+  date_to: string | null
+  gl_account_codes: string[]
+  min_total: DecimalString | null
+  max_total: DecimalString | null
+  has_errors: boolean | null
+  issue_codes: ValidationIssueCode[]
+  is_duplicate: boolean | null
+  used_llm_fallback: boolean | null
+  aggregate: QueryAggregate
+  group_by: QueryGroup
+}
+
+/** One count and total computed by the server, per group and currency. */
+export interface AssistantGroup {
+  label: string
+  currency: string | null
+  document_count: number
+  total_amount: DecimalString | null
+  documents_without_total: number
+}
+
+/** One answer from `POST /api/assistant/ask` with the evidence behind it. */
+export interface AssistantAnswer {
+  answer: string
+  cited_document_ids: string[]
+  query: DocumentQuery
+  match_count: number
+  documents: DocumentSummary[]
+  groups: AssistantGroup[]
+}
+
 /** Stable failure identifiers from `backend/app/api/errors.py`. */
 export type ErrorCode =
   | 'payload_too_large'
@@ -321,6 +366,7 @@ export type ErrorCode =
   | 'configuration_error'
   | 'provider_error'
   | 'invalid_gl_suggestion'
+  | 'invalid_assistant_output'
   | 'pipeline_error'
   | 'internal_error'
   | 'network_error'

@@ -36,6 +36,7 @@ The single DI-only miss is real, not synthetic: on `05-nl-missing-vendor-vat.pdf
 - Approve or reject with a final read-only state, guarded by optimistic revision checks so two tabs cannot race.
 - An on-demand correction-email draft for supplier-fixable issues, offering Copy and Close. **The application never sends mail.**
 - Review history with explicit deletion, so the same document can be demonstrated again.
+- Plain-language questions over that history, answered only from the stored reviews a typed SQL query returns, with every cited document one click away.
 - Live per-stage progress streamed over SSE while the pipeline runs.
 
 ## How a document flows
@@ -65,6 +66,26 @@ The policy is the fictional company's rulebook expressed as ordinary Python in [
 
 Approval additionally requires a valid selected GL account.
 
+## Ask the review history
+
+Retrieval-augmented answers over the stored reviews. Retrieval is SQL, not vector search: the questions a reviewer actually asks — "which pending invoices are blocked, and why?", "approved spend per GL account in July" — are filters and totals over fields the pipeline has already extracted, and summing chunks of text is exactly where a model goes wrong.
+
+```mermaid
+flowchart LR
+    question[Question] --> plan[Typed filter<br/>Azure OpenAI, strict schema]
+    plan --> check{Local checks<br/>catalog codes, ranges}
+    check --> sql[(SQLite<br/>filters, counts, totals)]
+    sql --> answer[Answer from retrieved rows only<br/>Azure OpenAI]
+    answer --> cite{Citations inside<br/>the retrieved set?}
+    cite --> ui[Answer, filter, totals, documents]
+```
+
+- The model only proposes the filter. GL codes outside the catalog and inverted date or amount ranges are rejected locally, and every value reaches SQL as a bound parameter.
+- Counts and totals are summed in SQL, per currency, and shown beside the answer. The model never does the arithmetic.
+- The answer sees at most the 20 newest matching documents and may cite only those; any other citation fails as `invalid_assistant_output`.
+- An off-topic question, or one that matches nothing, is answered without a second model call.
+- Each document's effective date, total, currency, and supplier search key are copied into columns when it is stored and again on every correction, so answers follow human edits. A database created before these columns gains and backfills them on startup.
+
 ## Layout
 
 ```text
@@ -75,6 +96,7 @@ backend/app/
 ├── document_review/# Independent-reading contracts, merge, corrections
 ├── invoices/       # Pure deterministic finance rules
 ├── accounting/     # Fixed GL catalog and selection validation
+├── assistant/      # Typed history questions and answers grounded in them
 ├── documents/      # SQLAlchemy models, repository, file storage
 ├── schemas/        # Normalized invoice/receipt documents
 ├── correction_email/
@@ -82,12 +104,12 @@ backend/app/
 └── config.py       # The only backend settings boundary
 
 frontend/src/
-├── components/     # Upload, progress, preview, fields, provenance, decisions
+├── components/     # Upload, progress, preview, fields, provenance, decisions, questions
 ├── lib/            # Typed API client, env boundary, shared types
 └── App.tsx         # Application-level workflow
 
 backend/scripts/    # Corpus evaluators (billable — see below)
-samples/            # 13-document fictional corpus + labelled manifest
+samples/            # 13-document fictional corpus, labelled manifest, labelled questions
 docs/               # Client brief, architecture, cost model, build log
 ```
 
@@ -108,6 +130,7 @@ Boundaries that are enforced, not aspirational: Azure SDK types never leave `pro
 | `POST` | `/api/documents/{id}/decision` | Approve or reject |
 | `POST` | `/api/documents/{id}/correction-email` | Draft a supplier correction (never sent) |
 | `DELETE` | `/api/documents/{id}` | Delete the record and its source |
+| `POST` | `/api/assistant/ask` | Answer one question from the stored reviews, citing them |
 | `GET` | `/api/gl-accounts` | The fixed Northstar catalog |
 
 Every failure returns the same envelope with a stable code: `{"error": {"code": "...", "message": "..."}}`.
@@ -144,7 +167,7 @@ Start both services:
 
 ## Evaluators
 
-Both scripts make **real, billable Azure calls**. Run them deliberately.
+Every script makes **real, billable Azure calls**. Run them deliberately.
 
 ```bash
 cd backend
@@ -154,6 +177,9 @@ uv run --locked --no-sync python scripts/evaluate_corpus.py
 
 # Full hybrid pipeline, including the model reader
 uv run --locked --no-sync python scripts/evaluate_hybrid.py
+
+# History-question filters only — one text call per labelled question
+uv run --locked --no-sync python scripts/evaluate_assistant.py
 ```
 
 Pass filenames for a narrow, cheaper check. `10-de-duplicate.pdf` needs `03-de-happy-modern.pdf` in the same selection, since duplicate detection needs something to collide with:
@@ -162,7 +188,7 @@ Pass filenames for a narrow, cheaper check. `10-de-duplicate.pdf` needs `03-de-h
 uv run --locked --no-sync python scripts/evaluate_hybrid.py 03-de-happy-modern.pdf 10-de-duplicate.pdf
 ```
 
-Each script scores extraction against `samples/manifest.json` and exits non-zero when the corpus goals are not met.
+The first two score extraction against `samples/manifest.json`; the third compares each filter the model proposes with `samples/assistant_questions.json`, resolving relative dates against a fixed 2026-08-15. Each exits non-zero when its goals are not met.
 
 ## Deployment
 
@@ -189,4 +215,4 @@ cd ../frontend && pnpm exec tsc -b --pretty false && pnpm lint && pnpm build
 
 ## Cost
 
-With Document Intelligence on F0, the first 500 analyzed pages each month are free, and a full 13-document corpus run uses 14 of them. Azure OpenAI is token-metered: two calls per upload, plus a third only when a correction email is requested. A complete hybrid corpus run costs roughly **$0.30**.
+With Document Intelligence on F0, the first 500 analyzed pages each month are free, and a full 13-document corpus run uses 14 of them. Azure OpenAI is token-metered: two calls per upload, plus a third only when a correction email is requested. A complete hybrid corpus run costs roughly **$0.30**. A history question makes two text-only calls, about **3 cents** at most, and one when it is off-topic or matches nothing.

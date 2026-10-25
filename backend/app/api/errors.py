@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.accounting import GeneralLedgerCatalogError
+from app.assistant import AssistantOutputError
 from app.config import ConfigurationError
 from app.correction_email import CorrectionEmailDraftingError
 from app.document_review import InvalidCorrectionError
@@ -31,6 +32,7 @@ class ErrorCode(StrEnum):
   CONFIGURATION_ERROR = "configuration_error"
   PROVIDER_ERROR = "provider_error"
   INVALID_GL_SUGGESTION = "invalid_gl_suggestion"
+  INVALID_ASSISTANT_OUTPUT = "invalid_assistant_output"
   PIPELINE_ERROR = "pipeline_error"
   INTERNAL_ERROR = "internal_error"
 
@@ -104,6 +106,9 @@ def classify_exception(exc: Exception) -> tuple[ErrorDetail, int]:
   if isinstance(exc, GeneralLedgerCatalogError):
     return ErrorDetail(code=ErrorCode.INVALID_GL_SUGGESTION, message=str(exc)), 502
 
+  if isinstance(exc, AssistantOutputError):
+    return ErrorDetail(code=ErrorCode.INVALID_ASSISTANT_OUTPUT, message=str(exc)), 502
+
   if isinstance(exc, DocumentNotFoundError):
     return ErrorDetail(code=ErrorCode.DOCUMENT_NOT_FOUND, message=str(exc)), 404
 
@@ -144,6 +149,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     CorrectionEmailDraftingError,
     DocumentIntelligenceError,
     GeneralLedgerCatalogError,
+    AssistantOutputError,
     DocumentNotFoundError,
     SQLAlchemyError,
     PipelineStateError,

@@ -3,17 +3,19 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, File, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from app.accounting import GENERAL_LEDGER_CATALOG
 from app.api.errors import ErrorBody, classify_exception
 from app.api.uploads import read_document
+from app.assistant import DocumentQuery, describe_group
 from app.correction_email import CorrectionEmailDraft, supplier_fixable_issues
 from app.document_review import (
   DocumentCorrections,
@@ -21,10 +23,12 @@ from app.document_review import (
   effective_field_sources,
 )
 from app.documents.database import get_session
+from app.documents.keys import from_cents
 from app.documents.models import DocumentRecord, ReviewStatus
 from app.pipeline import PipelineResult, StepPhase
 from app.schemas.common import StrictSchema
 from app.service import (
+  ask_documents,
   correct_document,
   decide_document,
   delete_document,
@@ -80,8 +84,40 @@ class DocumentSummaryResponse(StrictSchema):
   document_type: str | None
   vendor_name: str | None
   invoice_number: str | None
+  document_date: date | None
+  total_amount: Decimal | None
+  currency: str | None
   duplicate_of_id: str | None
   is_valid: bool | None
+
+
+class AssistantQuestionRequest(StrictSchema):
+  """One plain-language question about the stored review history."""
+
+  model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+  question: str = Field(min_length=1, max_length=500)
+
+
+class AssistantGroupResponse(StrictSchema):
+  """One locally computed count and total for a group and currency."""
+
+  label: str
+  currency: str | None
+  document_count: int
+  total_amount: Decimal | None
+  documents_without_total: int
+
+
+class AssistantAnswerResponse(StrictSchema):
+  """One answer with the filter, totals, and stored documents behind it."""
+
+  answer: str
+  cited_document_ids: tuple[str, ...]
+  query: DocumentQuery
+  match_count: int
+  documents: list[DocumentSummaryResponse]
+  groups: list[AssistantGroupResponse]
 
 
 class DocumentResponse(StrictSchema):
@@ -114,9 +150,17 @@ def _summary(record: DocumentRecord) -> DocumentSummaryResponse:
     document_type=record.document_type,
     vendor_name=record.vendor_name,
     invoice_number=record.invoice_number,
+    document_date=record.document_date,
+    total_amount=_amount(record.total_cents),
+    currency=record.currency,
     duplicate_of_id=record.duplicate_of_id,
     is_valid=validation.get("is_valid") if validation is not None else None,
   )
+
+
+def _amount(cents: int | None) -> Decimal | None:
+  """Turn one stored two-decimal integer back into an amount."""
+  return None if cents is None else from_cents(cents)
 
 
 def _document(record: DocumentRecord) -> DocumentResponse:
@@ -309,6 +353,32 @@ def read_document_file(
 def remove_document(session: SessionDependency, document_id: str) -> None:
   """Delete one stored document and its uploaded file."""
   delete_document(session, document_id)
+
+
+@router.post("/api/assistant/ask")
+def ask_review_history(
+  session: SessionDependency,
+  request: AssistantQuestionRequest,
+) -> AssistantAnswerResponse:
+  """Answer one question from the stored reviews, citing the documents it used."""
+  result = ask_documents(session, request.question)
+  return AssistantAnswerResponse(
+    answer=result.answer.answer,
+    cited_document_ids=result.answer.cited_document_ids,
+    query=result.query,
+    match_count=result.match_count,
+    documents=[_summary(record) for record in result.documents],
+    groups=[
+      AssistantGroupResponse(
+        label=describe_group(result.query.group_by, group.group),
+        currency=group.currency,
+        document_count=group.document_count,
+        total_amount=_amount(group.total_cents),
+        documents_without_total=group.documents_without_total,
+      )
+      for group in result.groups
+    ],
+  )
 
 
 @router.get("/api/gl-accounts")

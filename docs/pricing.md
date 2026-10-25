@@ -63,6 +63,20 @@ one optional draft          = $0.0125, about 1.25 cents
 
 The call returns copyable text only. It does not send an email or incur an email-provider charge.
 
+## Optional review-history question cost
+
+Asking the review history never sends a source file. It makes two text-only calls: one turns the question into a typed filter, and one writes the answer from at most 20 retrieved documents plus the totals SQL computed. An off-topic question, or one that matches nothing, stops after the first call.
+
+```text
+filter input:   2,000 × $2.50 / 1M = $0.0050
+filter output:    300 × $15.00 / 1M = $0.0045
+answer input:   4,000 × $2.50 / 1M = $0.0100
+answer output:    500 × $15.00 / 1M = $0.0075
+one question                        = $0.0270, about 3 cents
+```
+
+`scripts/evaluate_assistant.py` makes only the filter call, once for each of the 12 labelled questions: 12 × $0.0095, about **$0.11**.
+
 ## Recheck the calculation
 
 Count the committed corpus:

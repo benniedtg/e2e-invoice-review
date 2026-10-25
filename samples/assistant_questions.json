@@ -1,0 +1,90 @@
+[
+  {
+    "question": "Which pending invoices are blocked, and why?",
+    "expected": {
+      "statuses": ["pending"],
+      "document_types": ["invoice"],
+      "has_errors": true
+    }
+  },
+  {
+    "question": "How much did we approve per GL account in July?",
+    "expected": {
+      "statuses": ["approved"],
+      "date_from": "2026-07-01",
+      "date_to": "2026-07-31",
+      "aggregate": "total",
+      "group_by": "gl_account"
+    }
+  },
+  {
+    "question": "Show everything from Rhein Wartung.",
+    "expected": {
+      "vendor_text": "Rhein Wartung"
+    }
+  },
+  {
+    "question": "Which documents needed the AI fallback?",
+    "expected": {
+      "used_llm_fallback": true
+    }
+  },
+  {
+    "question": "List the duplicate documents.",
+    "expected": {
+      "is_duplicate": true
+    }
+  },
+  {
+    "question": "How many receipts are still pending?",
+    "expected": {
+      "statuses": ["pending"],
+      "document_types": ["receipt"],
+      "aggregate": "count"
+    }
+  },
+  {
+    "question": "List cleaning invoices of 200 or more.",
+    "expected": {
+      "document_types": ["invoice"],
+      "gl_account_codes": ["6100"],
+      "min_total": "200"
+    }
+  },
+  {
+    "question": "Which invoices have an invalid supplier VAT number?",
+    "expected": {
+      "document_types": ["invoice"],
+      "issue_codes": ["vendor_vat_id_invalid"]
+    }
+  },
+  {
+    "question": "What is the total of all documents per supplier last month?",
+    "expected": {
+      "date_from": "2026-07-01",
+      "date_to": "2026-07-31",
+      "aggregate": "total",
+      "group_by": "vendor"
+    }
+  },
+  {
+    "question": "Which receipts have no errors?",
+    "expected": {
+      "document_types": ["receipt"],
+      "has_errors": false
+    }
+  },
+  {
+    "question": "How many documents were rejected?",
+    "expected": {
+      "statuses": ["rejected"],
+      "aggregate": "count"
+    }
+  },
+  {
+    "question": "What's the weather in Amsterdam today?",
+    "expected": {
+      "intent": "unsupported"
+    }
+  }
+]

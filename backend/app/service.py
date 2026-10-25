@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from dataclasses import asdict, dataclass
+from datetime import UTC, date, datetime
 from functools import lru_cache
 from hashlib import sha256 as build_sha256
 from pathlib import Path
@@ -11,6 +11,14 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from app.accounting import GeneralLedgerCatalogError, resolve_general_ledger_account
+from app.assistant import (
+  AssistantAnswer,
+  DocumentAssistant,
+  DocumentGroupTotal,
+  DocumentQuery,
+  QueryAggregate,
+  QueryIntent,
+)
 from app.config import (
   NORTHSTAR_POLICY,
   load_azure_openai_settings,
@@ -27,7 +35,7 @@ from app.document_review import (
   document_field_name,
 )
 from app.documents import repository, storage
-from app.documents.keys import DocumentIdentity, document_identity
+from app.documents.keys import DocumentIdentity, document_facts, document_identity
 from app.documents.models import DocumentRecord, ReviewStatus
 from app.invoices import (
   ValidationContext,
@@ -74,6 +82,26 @@ class StoredDocumentFile:
   filename: str
 
 
+@dataclass(frozen=True, slots=True)
+class DocumentAnswer:
+  """One answer with the typed filter and the stored evidence behind it."""
+
+  answer: AssistantAnswer
+  query: DocumentQuery
+  match_count: int
+  documents: Sequence[DocumentRecord]
+  groups: tuple[DocumentGroupTotal, ...]
+
+
+ANSWER_DOCUMENT_LIMIT = 20
+"""Documents an answer may draw on; counts and totals still cover every match."""
+
+UNSUPPORTED_ANSWER = (
+  "I can only answer questions about the stored invoice and receipt reviews."
+)
+NO_MATCH_ANSWER = "No stored documents match this question."
+
+
 @lru_cache(maxsize=1)
 def get_pipeline() -> Pipeline:
   """Build the configured pipeline once and reuse it for every request."""
@@ -91,6 +119,12 @@ def get_correction_email_drafter() -> CorrectionEmailDrafter:
   """Build and cache the optional strict correction-email operation."""
   provider = AzureOpenAIProvider(load_azure_openai_settings())
   return AzureOpenAICorrectionEmailDrafter(provider)
+
+
+@lru_cache(maxsize=1)
+def get_document_assistant() -> DocumentAssistant:
+  """Build and cache the review-history question operation."""
+  return DocumentAssistant(AzureOpenAIProvider(load_azure_openai_settings()))
 
 
 STORAGE_STEP_ID = "storage"
@@ -136,6 +170,7 @@ def process_document(
     invoice_number=identity.invoice_number,
     vendor_name_key=identity.vendor_name_key,
     invoice_number_key=identity.invoice_number_key,
+    **asdict(document_facts(result.document)),
     duplicate_of_id=duplicate.id if duplicate is not None else None,
     field_overrides={},
   )
@@ -208,6 +243,7 @@ def correct_document(
       field_overrides=serialized_overrides,
       validation=validation,
       identity=identity,
+      facts=document_facts(effective),
       duplicate_of_id=duplicate.id if duplicate is not None else None,
     )
   except repository.StaleReviewWriteError as exc:
@@ -334,6 +370,44 @@ def draft_correction_email(
       "This document has no supplier-fixable issues."
     )
   return get_correction_email_drafter().draft(result.document, issues)
+
+
+def ask_documents(session: Session, question: str) -> DocumentAnswer:
+  """Plan a typed filter, retrieve stored reviews, and answer only from them."""
+  assistant = get_document_assistant()
+  query = assistant.plan(question, date.today())
+  if query.intent == QueryIntent.UNSUPPORTED:
+    return DocumentAnswer(
+      answer=AssistantAnswer(answer=UNSUPPORTED_ANSWER),
+      query=query,
+      match_count=0,
+      documents=(),
+      groups=(),
+    )
+
+  documents, match_count = repository.search_documents(
+    session,
+    query,
+    ANSWER_DOCUMENT_LIMIT,
+  )
+  groups = (
+    ()
+    if query.aggregate == QueryAggregate.LIST
+    else repository.total_documents(session, query)
+  )
+  # Nothing to ground an answer in, so the model is not asked to write one.
+  answer = (
+    AssistantAnswer(answer=NO_MATCH_ANSWER)
+    if match_count == 0
+    else assistant.answer(question, query, documents, match_count, groups)
+  )
+  return DocumentAnswer(
+    answer=answer,
+    query=query,
+    match_count=match_count,
+    documents=documents,
+    groups=groups,
+  )
 
 
 def delete_document(session: Session, document_id: str) -> None:

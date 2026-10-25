@@ -1,8 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 
-from app.schemas import InvoiceDocument, NormalizedDocument, ReceiptDocument
+from app.schemas import (
+  ExtractedField,
+  InvoiceDocument,
+  Money,
+  NormalizedDocument,
+  ReceiptDocument,
+)
+
+CENT = Decimal("0.01")
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +23,29 @@ class DocumentIdentity:
   invoice_number: str | None = None
   vendor_name_key: str | None = None
   invoice_number_key: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DocumentFacts:
+  """Effective values copied into columns so stored reviews can be queried.
+
+  Field names are the column names they are stored under.
+  """
+
+  document_date: date | None = None
+  total_cents: int | None = None
+  currency: str | None = None
+  vendor_search_key: str | None = None
+
+
+def to_cents(amount: Decimal) -> int:
+  """Store money on a fixed two-decimal scale so SQL sums stay exact."""
+  return int(amount.quantize(CENT, rounding=ROUND_HALF_UP).scaleb(2))
+
+
+def from_cents(cents: int) -> Decimal:
+  """Turn a stored two-decimal integer back into an amount."""
+  return Decimal(cents).scaleb(-2)
 
 
 def normalize_name(value: str) -> str:
@@ -46,6 +79,42 @@ def _invoice_identity(document: InvoiceDocument) -> DocumentIdentity:
     invoice_number=invoice_number,
     vendor_name_key=normalize_name(vendor_name),
     invoice_number_key=normalize_identifier(invoice_number),
+  )
+
+
+def document_facts(document: NormalizedDocument | None) -> DocumentFacts:
+  """Project the effective date, total, currency, and supplier for querying."""
+  if isinstance(document, InvoiceDocument):
+    return _facts(
+      document.vendor_name,
+      document.invoice_date,
+      document.invoice_total,
+      document.currency,
+    )
+  if isinstance(document, ReceiptDocument):
+    return _facts(
+      document.merchant_name,
+      document.transaction_date,
+      document.total,
+      document.currency,
+    )
+  return DocumentFacts()
+
+
+def _facts(
+  vendor: ExtractedField[str] | None,
+  document_date: ExtractedField[date] | None,
+  total: ExtractedField[Money] | None,
+  currency: ExtractedField[str] | None,
+) -> DocumentFacts:
+  """Build one projection from the fields both document types share."""
+  vendor_name = _field_value(vendor)
+  currency_code = (_field_value(currency) or "").strip().upper()
+  return DocumentFacts(
+    document_date=document_date.value if document_date is not None else None,
+    total_cents=to_cents(total.value.amount) if total is not None else None,
+    currency=currency_code or None,
+    vendor_search_key=normalize_name(vendor_name) if vendor_name is not None else None,
   )
 
 
