@@ -1,5 +1,6 @@
 import { API_BASE_URL } from './env.ts'
 import type {
+  AssistantAnswer,
   CorrectionEmailDraft,
   DocumentCorrections,
   DocumentResponse,
@@ -150,6 +151,15 @@ export function draftCorrectionEmail(id: string): Promise<CorrectionEmailDraft> 
 export function deleteDocument(id: string): Promise<void> {
   return request<void>(`/api/documents/${encodeURIComponent(id)}`, {
     method: 'DELETE',
+  })
+}
+
+/** Ask one question that is answered only from the stored reviews. */
+export function askAssistant(question: string): Promise<AssistantAnswer> {
+  return request<AssistantAnswer>('/api/assistant/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
   })
 }
 

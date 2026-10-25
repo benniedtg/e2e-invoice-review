@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import AskPanel from './components/AskPanel.tsx'
 import ConfirmDialog from './components/ConfirmDialog.tsx'
 import DocumentSummaryCard from './components/DocumentSummary.tsx'
 import HistoryList from './components/HistoryList.tsx'
@@ -173,6 +174,11 @@ export default function App() {
           <span className="block">{phase.message}</span>
         </p>
       )}
+
+      <AskPanel
+        selectedId={phase.name === 'done' ? phase.document.id : null}
+        onOpen={reopen}
+      />
 
       <HistoryList
         documents={history}

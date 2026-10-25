@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, Index, Integer, String
+from sqlalchemy import JSON, Date, DateTime, Index, Integer, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.document_review import apply_field_overrides
@@ -72,6 +72,13 @@ class DocumentRecord(Base):
   vendor_name_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
   invoice_number_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
   duplicate_of_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+  # Effective values, human corrections included, copied out of the JSON stages
+  # so the review-history assistant can filter and total them in SQL.
+  document_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+  total_cents: Mapped[int | None] = mapped_column(Integer, nullable=True)
+  currency: Mapped[str | None] = mapped_column(String(16), nullable=True)
+  vendor_search_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
   selected_gl_code: Mapped[str | None] = mapped_column(String(4), nullable=True)
   field_overrides: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)

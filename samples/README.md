@@ -22,6 +22,8 @@ The extraction evaluator routes each manifest entry to `prebuilt-invoice` or `pr
 
 The committed set contains eleven PDFs and two PNG images. VAT values are fictional checksum examples and are never presented as verified business registrations.
 
+`assistant_questions.json` labels 12 review-history questions with the typed filter each should produce. `scripts/evaluate_assistant.py` sends only the questions, never a document, and resolves relative dates against a fixed 2026-08-15.
+
 Microsoft's official sample invoice is downloaded locally for the first Azure provider check and ignored by Git:
 
 ```bash
