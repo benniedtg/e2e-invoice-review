@@ -86,6 +86,68 @@ flowchart LR
 - An off-topic question, or one that matches nothing, is answered without a second model call.
 - Each document's effective date, total, currency, and supplier search key are copied into columns when it is stored and again on every correction, so answers follow human edits. A database created before these columns gains and backfills them on startup.
 
+## Student claims
+
+A second tab, separate from Northstar. An international student uploads a health receipt (say, from the optometrist after breaking their glasses) and asks whether their Overseas Student Health Cover will pay for it. A guided chat asks only for the facts the answer depends on, then answers from that student's exact policy edition with the section and page it relies on.
+
+Policies loaded so far: **nib** (OSHC Core, Premium, Top, Ultimate, Student Care), **Bupa** (OSHC, Advantage, Success), and **Allianz Care** (OSHC Essentials, Standard, including the previous Standard edition).
+
+```mermaid
+flowchart LR
+    receipt[Receipt] --> facts[1 · Facts<br/>each field clear, unclear, or absent]
+    facts --> policy[2 · Product, then edition<br/>by service date]
+    policy --> retrieve[3 · Evidence per aspect<br/>FTS5 + embeddings, fused]
+    retrieve --> conditions[4 · Typed conditions<br/>quotes verified locally]
+    conditions --> decide{Evaluated in code}
+    decide -->|a fact is missing| ask[Next question]
+    ask --> decide
+    decide --> calc[5 · Benefit arithmetic<br/>in Python]
+    calc --> message[6 · Message<br/>numbers checked]
+```
+
+1. **Facts.** The model reads the service description, date, item code, amount charged, and amount paid for each line, plus the provider. Every field is `clear`, `unclear`, or `absent`, and an unclear field carries no value: the instructions forbid guessing, and dates that cannot be real are downgraded to unclear in code. The patient's name is never read.
+2. **Policy.** The chat asks for the insurer, then the product. The policy edition is chosen by each line's service date, and retrieval only ever searches that edition and that product's schedule. A date no loaded edition covers is reported, not assessed against today's rules.
+3. **Evidence.** Each line is searched once per aspect: coverage, exclusions, waiting periods, limits, and claim rules, plus the definitions of terms used in what was found. Each search fuses SQLite FTS5 keyword ranking with embedding similarity (reciprocal-rank fusion), and services that could fall under more than one heading (an eye test is optical and medical) are searched under each reading. There is no vector database: the five loaded editions make 495 chunks, and a search only scores the 60–200 of one edition, so their vectors sit in the same SQLite table as their text and are compared in process.
+4. **Conditions.** The model turns the passages into typed conditions: coverage, exclusion, waiting period, benefit rate and its basis, per-service and annual limits, referral, provider, claim time limit, claim documents. A condition is dropped unless its quote appears in a passage retrieved for that line and every number in it appears in that quote. Each condition is then evaluated in code against the receipt and the student's answers.
+5. **Calculation.** Rate, then per-service cap, then the remaining annual limit, never above the amount paid, rounded to cents, with each step shown. Lines that share an annual limit draw it down in order. A benefit defined against the MBS fee is stated without an amount, since the fee schedule is not loaded.
+6. **Outcome.** `appears eligible`, `appears excluded`, `appears not eligible`, or `more information needed`, each with the passages behind it. The model explains the result, but any number in its message that is not in its payload replaces the message with a fixed template. Every answer ends with "Your insurer makes the final decision."
+
+**Check and forget.** The receipt is read in memory and never written; answers live only in the browser tab. The server keeps no student data between requests: after the first assessment the browser sends back the verified conditions, and the server re-checks every quote against its stored policy text before deciding again, so a follow-up answer costs one short message call instead of a new reading.
+
+This is a guide, not advice, and it has no sign-in: anyone who can reach the API can run a check.
+
+### Measured
+
+`scripts/evaluate_claims.py` plays each labelled conversation in `samples/claims/manifest.json` (10 fictional receipts, 11 policy checks across nib, Bupa, and Allianz Care) and scores every stage. Run on 2026-10-26:
+
+| Stage | What is checked | Result |
+| --- | --- | ---: |
+| 1 · Facts | Health receipt or not / field status / field value / line count | 9/9 · 35/35 · 31/31 · 8/8 |
+| 2 · Policy | Edition used for the service date | 6/6 |
+| 3 · Evidence | Labelled sections retrieved (coverage 4/4, limits 2/2, exclusions 1/1, claims 1/2) | 8/9 |
+| 4 · Conditions | Labelled conditions with their values | 5/5 |
+| 4 · Questions | Questions asked, in order | 6/6 |
+| 5 · Calculation | Exact benefit | 4/5 |
+| 6 · Outcome | Each labelled line's outcome | 16/17 |
+
+- **The miss:** on the blurred optical scan, where the lens's item code and fee are unreadable, this run's conditions reading treated the lens as excluded. Two reruns found Schedule M's row for it and asked how much was paid, as labelled. The evaluator keeps it as a failure because a student only gets one run.
+- **The recall gap:** LS2.23.1 (claim requirements) reached the frames line but not the lens line. Claim steps are combined across lines, so the student still sees it.
+- **What moved the score:** the first run scored 13/17 outcomes. GP visits came out excluded because nib's general "Medical Services Payments" clause never reached the model; the receipt's own words pulled in item tables instead. Searching each reading's policy words on their own as well fixed it.
+- An eye examination billed with an MBS item number sits between nib's medical-services clause and its Extras table, so that line is deliberately unlabelled.
+
+### Load the policies
+
+Insurer documents are copyrighted, so they are never committed. The catalog (`backend/app/claims/catalog.py`) records each edition's source and effective dates; the ingest script downloads, chunks, embeds, and stores them under the gitignored `backend/data/`:
+
+```bash
+cd backend
+uv run --locked --no-sync python scripts/ingest_policy.py --download
+```
+
+Some insurer sites refuse scripted downloads. The script then prints the source URL and the exact path to save the PDF to; save it by hand and run the command again without `--download`. Unchanged files are skipped.
+
+Embeddings use the `text-embedding-3-large` deployment through the resource's `*.openai.azure.com` endpoint, which needs the **Cognitive Services OpenAI User** role on the Foundry resource itself. A project-level role alone is refused with `401`.
+
 ## Layout
 
 ```text
@@ -97,6 +159,7 @@ backend/app/
 ├── invoices/       # Pure deterministic finance rules
 ├── accounting/     # Fixed GL catalog and selection validation
 ├── assistant/      # Typed history questions and answers grounded in them
+├── claims/         # OSHC catalog, policy ingest, retrieval, conditions, arithmetic
 ├── documents/      # SQLAlchemy models, repository, file storage
 ├── schemas/        # Normalized invoice/receipt documents
 ├── correction_email/
@@ -105,11 +168,13 @@ backend/app/
 
 frontend/src/
 ├── components/     # Upload, progress, preview, fields, provenance, decisions, questions
+│   └── claims/     # Student claims chat, outcome, cited policy page
 ├── lib/            # Typed API client, env boundary, shared types
 └── App.tsx         # Application-level workflow
 
-backend/scripts/    # Corpus evaluators (billable — see below)
+backend/scripts/    # Corpus evaluators (billable — see below), policy ingest
 samples/            # 13-document fictional corpus, labelled manifest, labelled questions
+samples/claims/     # 10 fictional health receipts and their labelled claim checks
 docs/               # Client brief, architecture, cost model, build log
 ```
 
@@ -132,6 +197,12 @@ Boundaries that are enforced, not aspirational: Azure SDK types never leave `pro
 | `DELETE` | `/api/documents/{id}` | Delete the record and its source |
 | `POST` | `/api/assistant/ask` | Answer one question from the stored reviews, citing them |
 | `GET` | `/api/gl-accounts` | The fixed Northstar catalog |
+| `POST` | `/api/claims/extract` | Read one health receipt in memory (stored nowhere) |
+| `POST` | `/api/claims/assess` | Ask the next question, or retrieve, read, and decide |
+| `POST` | `/api/claims/reassess` | Decide again from re-verified conditions after a new answer |
+| `POST` | `/api/claims/interpret` | Map a typed reply onto the question's format |
+| `GET` | `/api/claims/policies` | Insurers, products, editions, and which are loaded |
+| `GET` | `/api/policy/documents/{id}/file` | A policy PDF, for opening a cited page |
 
 Every failure returns the same envelope with a stable code: `{"error": {"code": "...", "message": "..."}}`.
 
@@ -180,6 +251,9 @@ uv run --locked --no-sync python scripts/evaluate_hybrid.py
 
 # History-question filters only — one text call per labelled question
 uv run --locked --no-sync python scripts/evaluate_assistant.py
+
+# Student claims — needs the policies ingested first
+uv run --locked --no-sync python scripts/evaluate_claims.py
 ```
 
 Pass filenames for a narrow, cheaper check. `10-de-duplicate.pdf` needs `03-de-happy-modern.pdf` in the same selection, since duplicate detection needs something to collide with:
@@ -188,7 +262,7 @@ Pass filenames for a narrow, cheaper check. `10-de-duplicate.pdf` needs `03-de-h
 uv run --locked --no-sync python scripts/evaluate_hybrid.py 03-de-happy-modern.pdf 10-de-duplicate.pdf
 ```
 
-The first two score extraction against `samples/manifest.json`; the third compares each filter the model proposes with `samples/assistant_questions.json`, resolving relative dates against a fixed 2026-08-15. Each exits non-zero when its goals are not met.
+The first two score extraction against `samples/manifest.json`; the third compares each filter the model proposes with `samples/assistant_questions.json`, resolving relative dates against a fixed 2026-08-15; the fourth plays each labelled claim conversation in `samples/claims/manifest.json` and scores it stage by stage. Each exits non-zero when its goals are not met.
 
 ## Deployment
 
@@ -215,4 +289,4 @@ cd ../frontend && pnpm exec tsc -b --pretty false && pnpm lint && pnpm build
 
 ## Cost
 
-With Document Intelligence on F0, the first 500 analyzed pages each month are free, and a full 13-document corpus run uses 14 of them. Azure OpenAI is token-metered: two calls per upload, plus a third only when a correction email is requested. A complete hybrid corpus run costs roughly **$0.30**. A history question makes two text-only calls, about **3 cents** at most, and one when it is off-topic or matches nothing.
+With Document Intelligence on F0, the first 500 analyzed pages each month are free, and a full 13-document corpus run uses 14 of them. Azure OpenAI is token-metered: two calls per upload, plus a third only when a correction email is requested. A complete hybrid corpus run costs roughly **$0.30**. A history question makes two text-only calls, about **3 cents** at most, and one when it is off-topic or matches nothing. A student claim check costs about **4 cents** for a one-line receipt and **9 cents** for the three-line glasses receipt, mostly the conditions reading; answers decided in code add about 0.4 cents each. See [`docs/pricing.md`](docs/pricing.md).

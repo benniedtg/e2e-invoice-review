@@ -1,0 +1,205 @@
+{
+  "default_answers": {
+    "cover_start_date": "2026-02-20",
+    "benefits_used": "0",
+    "has_referral": "yes"
+  },
+  "receipts": [
+    {
+      "receipt": "01-glasses-optometrist.pdf",
+      "facts": {
+        "is_health_receipt": true,
+        "total_paid": ["clear", "395.00"],
+        "lines": [
+          {"service_date": ["clear", "2026-10-12"], "item_code": ["clear", "10918"], "amount_charged": ["clear", "75.00"]},
+          {"service_date": ["clear", "2026-10-12"], "item_code": ["clear", "9484"], "amount_charged": ["clear", "220.00"]},
+          {"service_date": ["clear", "2026-10-12"], "item_code": ["clear", "9472"], "amount_charged": ["clear", "100.00"]}
+        ]
+      },
+      "checks": [
+        {
+          "product_id": "nib-premium",
+          "note": "Schedule M pays 9484 and 9472 at 100%; LS6.14 caps Optical at $500 a year; LS2.20.4 sets no Extras wait. The eye exam (MBS 10918) sits between LS6.5 medical services and Schedule M, so it is not labelled.",
+          "editions": ["nib-oshc-fund-rules-2026-07-29"],
+          "evidence": {
+            "1": {"coverage": ["Schedule M"], "limits": ["LS6.14"], "claims": ["LS2.23.1"]},
+            "2": {"coverage": ["Schedule M"], "limits": ["LS6.14"]}
+          },
+          "conditions": {
+            "1": [{"kind": "benefit_rate", "percent": "100"}, {"kind": "annual_limit", "amount": "500"}],
+            "2": [{"kind": "benefit_rate", "percent": "100"}, {"kind": "annual_limit", "amount": "500"}]
+          },
+          "lines": {
+            "1": {"outcome": "appears_eligible", "estimate": "220.00"},
+            "2": {"outcome": "appears_eligible", "estimate": "100.00"}
+          }
+        },
+        {
+          "product_id": "nib-core",
+          "note": "LS4.2: no General (Extras) benefits on OSHC Core.",
+          "editions": ["nib-oshc-fund-rules-2026-07-29"],
+          "lines": {
+            "1": {"outcome": "appears_excluded"},
+            "2": {"outcome": "appears_excluded"}
+          }
+        },
+        {
+          "product_id": "bupa-oshc",
+          "note": "Product 1, 1.3 General Treatment Benefits: not covered under this Product.",
+          "editions": ["bupa-oshc-rules-2026-06-30"],
+          "evidence": {"1": {"coverage": ["1.3"]}},
+          "lines": {
+            "1": {"outcome": "appears_excluded"},
+            "2": {"outcome": "appears_excluded"}
+          }
+        },
+        {
+          "product_id": "allianz-standard",
+          "note": "Members guide: no cover for optical charges unless the service meets the MBS; 9484 and 9472 are not MBS items.",
+          "editions": ["allianz-oshc-standard-2026-07-01"],
+          "lines": {
+            "1": {"outcome": "appears_excluded"},
+            "2": {"outcome": "appears_excluded"}
+          }
+        }
+      ]
+    },
+    {
+      "receipt": "02-gp-consultation.pdf",
+      "facts": {
+        "is_health_receipt": true,
+        "total_paid": ["clear", "85.00"],
+        "lines": [
+          {"service_date": ["clear", "2026-10-14"], "item_code": ["clear", "23"], "amount_charged": ["clear", "85.00"]}
+        ]
+      },
+      "checks": [
+        {
+          "product_id": "nib-core",
+          "note": "LS4.5: outpatient GP consultations at 100% of the MBS fee. The MBS fee is not loaded, so no amount.",
+          "editions": ["nib-oshc-fund-rules-2026-07-29"],
+          "questions": [],
+          "evidence": {"0": {"coverage": ["LS4.5"], "claims": ["LS2.23.1"]}},
+          "lines": {"0": {"outcome": "appears_eligible", "estimate": null}}
+        }
+      ]
+    },
+    {
+      "receipt": "03-vague-consultation.pdf",
+      "facts": {
+        "is_health_receipt": true,
+        "lines": [
+          {"service_date": ["clear", "2026-10-15"], "item_code": ["absent", null], "amount_charged": ["clear", "150.00"]}
+        ]
+      },
+      "checks": [
+        {
+          "product_id": "nib-core",
+          "note": "\"Consultation\" alone could be a GP, specialist, or allied visit, so the service must be described first.",
+          "answers": {"service_description": "Standard GP consultation"},
+          "questions": ["service_description"],
+          "lines": {"0": {"outcome": "appears_eligible", "estimate": null}}
+        }
+      ]
+    },
+    {
+      "receipt": "05-dental.pdf",
+      "facts": {
+        "is_health_receipt": true,
+        "total_paid": ["clear", "190.00"],
+        "lines": [
+          {"item_code": ["clear", "012"], "amount_charged": ["clear", "70.00"]},
+          {"item_code": ["clear", "114"], "amount_charged": ["clear", "120.00"]}
+        ]
+      },
+      "checks": [
+        {
+          "product_id": "nib-core",
+          "note": "LS4.2: no General (Extras) benefits on OSHC Core.",
+          "questions": [],
+          "lines": {
+            "0": {"outcome": "appears_excluded"},
+            "1": {"outcome": "appears_excluded"}
+          }
+        }
+      ]
+    },
+    {
+      "receipt": "06-physiotherapy.pdf",
+      "facts": {
+        "is_health_receipt": true,
+        "lines": [{"item_code": ["clear", "500"], "amount_charged": ["clear", "95.00"]}]
+      },
+      "checks": [
+        {
+          "product_id": "nib-core",
+          "note": "LS4.2: no General (Extras) benefits on OSHC Core.",
+          "questions": [],
+          "lines": {"0": {"outcome": "appears_excluded"}}
+        }
+      ]
+    },
+    {
+      "receipt": "07-sunglasses.pdf",
+      "facts": {
+        "is_health_receipt": true,
+        "lines": [{"item_code": ["absent", null], "amount_charged": ["clear", "180.00"]}]
+      },
+      "checks": [
+        {
+          "product_id": "nib-premium",
+          "note": "LS6.14: Optical Benefits are not payable for sunglasses.",
+          "questions": [],
+          "evidence": {"0": {"exclusions": ["LS6.14"]}},
+          "conditions": {"0": [{"kind": "exclusion"}]},
+          "lines": {"0": {"outcome": "appears_excluded"}}
+        }
+      ]
+    },
+    {
+      "receipt": "08-unclear-optical.png",
+      "facts": {
+        "is_health_receipt": true,
+        "total_paid": ["clear", "295.00"],
+        "lines": [
+          {"item_code": ["clear", "10918"], "amount_charged": ["clear", "75.00"]},
+          {"item_code": ["unclear", null], "amount_charged": ["unclear", null]}
+        ]
+      },
+      "checks": [
+        {
+          "product_id": "nib-premium",
+          "note": "The lens fee is blurred, so the amount paid for it must be asked before any estimate. Answers are per line.",
+          "answers": {"amount_paid": {"0": "75.00", "1": "220.00"}},
+          "lines": {"1": {"outcome": "appears_eligible", "estimate": "220.00"}}
+        }
+      ]
+    },
+    {
+      "receipt": "09-cafe.pdf",
+      "facts": {"is_health_receipt": false}
+    },
+    {
+      "receipt": "10-old-glasses.pdf",
+      "facts": {
+        "is_health_receipt": true,
+        "lines": [
+          {"service_date": ["clear", "2024-03-04"], "item_code": ["clear", "9484"]},
+          {"service_date": ["clear", "2024-03-04"], "item_code": ["clear", "9472"]}
+        ]
+      },
+      "checks": [
+        {
+          "product_id": "nib-premium",
+          "note": "No loaded nib edition governs March 2024, so nothing may be assessed against the current rules.",
+          "editions": [],
+          "questions": [],
+          "lines": {
+            "0": {"outcome": "more_information_needed"},
+            "1": {"outcome": "more_information_needed"}
+          }
+        }
+      ]
+    }
+  ]
+}

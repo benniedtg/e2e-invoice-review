@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import AskPanel from './components/AskPanel.tsx'
+import ClaimChat from './components/claims/ClaimChat.tsx'
 import ConfirmDialog from './components/ConfirmDialog.tsx'
 import DocumentSummaryCard from './components/DocumentSummary.tsx'
 import HistoryList from './components/HistoryList.tsx'
@@ -21,6 +22,13 @@ import type {
   StepPhase,
 } from './lib/types.ts'
 
+type Tab = 'invoices' | 'claims'
+
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'invoices', label: 'Invoice review' },
+  { id: 'claims', label: 'Student claims' },
+]
+
 type Phase =
   | { name: 'idle' }
   | { name: 'processing'; filename: string; phases: Partial<Record<StepId, StepPhase>> }
@@ -35,6 +43,7 @@ function toFailure(error: unknown): Phase {
 }
 
 export default function App() {
+  const [tab, setTab] = useState<Tab>('invoices')
   const [phase, setPhase] = useState<Phase>({ name: 'idle' })
   const [history, setHistory] = useState<DocumentSummary[]>([])
   const [historyError, setHistoryError] = useState<string | null>(null)
@@ -136,61 +145,90 @@ export default function App() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-7xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-      <header>
-        <h1 className="text-3xl font-semibold">Invoice Review</h1>
-        <p className="mt-2 text-muted">
-          Upload one invoice or receipt. It is classified, extracted, categorized against the
-          Northstar ledger, and validated.
-        </p>
-      </header>
-
-      {phase.name === 'processing' && (
-        <ProcessingSteps filename={phase.filename} phases={phase.phases} />
-      )}
-
-      {phase.name === 'done' && (
-        <>
-          <DocumentSummaryCard
-            document={phase.document}
-            onDocumentChanged={documentChanged}
-          />
+      <nav className="flex gap-2 border-b border-line" aria-label="Sections">
+        {TABS.map((item) => (
           <button
+            key={item.id}
             type="button"
-            className="self-start rounded-lg border border-line px-4 py-2 text-sm font-medium hover:bg-raised"
-            onClick={() => setPhase({ name: 'idle' })}
+            aria-current={tab === item.id ? 'page' : undefined}
+            onClick={() => setTab(item.id)}
+            className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+              tab === item.id ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'
+            }`}
           >
-            Process another document
+            {item.label}
           </button>
-        </>
-      )}
+        ))}
+      </nav>
 
-      {(phase.name === 'idle' || phase.name === 'failed') && (
-        <UploadPanel isProcessing={false} onProcess={run} />
-      )}
+      <div hidden={tab !== 'claims'} className="flex flex-col gap-8">
+        <header>
+          <h1 className="text-3xl font-semibold">Student claims</h1>
+          <p className="mt-2 text-muted">
+            Upload a health receipt to check whether your OSHC policy appears to pay for it. Answers
+            cite your policy's section and page. Nothing you upload or answer is stored.
+          </p>
+        </header>
+        <ClaimChat />
+      </div>
 
-      {phase.name === 'failed' && (
-        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
-          <span className="font-medium">{phase.code}</span>
-          <span className="block">{phase.message}</span>
-        </p>
-      )}
+      <div hidden={tab !== 'invoices'} className="flex flex-col gap-8">
+        <header>
+          <h1 className="text-3xl font-semibold">Invoice Review</h1>
+          <p className="mt-2 text-muted">
+            Upload one invoice or receipt. It is classified, extracted, categorized against the
+            Northstar ledger, and validated.
+          </p>
+        </header>
 
-      <AskPanel
-        selectedId={phase.name === 'done' ? phase.document.id : null}
-        onOpen={reopen}
-      />
+        {phase.name === 'processing' && (
+          <ProcessingSteps filename={phase.filename} phases={phase.phases} />
+        )}
 
-      <HistoryList
-        documents={history}
-        selectedId={phase.name === 'done' ? phase.document.id : null}
-        deletingId={deletingId}
-        onSelect={reopen}
-        onDelete={requestDeletion}
-      />
+        {phase.name === 'done' && (
+          <>
+            <DocumentSummaryCard
+              document={phase.document}
+              onDocumentChanged={documentChanged}
+            />
+            <button
+              type="button"
+              className="self-start rounded-lg border border-line px-4 py-2 text-sm font-medium hover:bg-raised"
+              onClick={() => setPhase({ name: 'idle' })}
+            >
+              Process another document
+            </button>
+          </>
+        )}
 
-      {historyError !== null && (
-        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">{historyError}</p>
-      )}
+        {(phase.name === 'idle' || phase.name === 'failed') && (
+          <UploadPanel isProcessing={false} onProcess={run} />
+        )}
+
+        {phase.name === 'failed' && (
+          <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+            <span className="font-medium">{phase.code}</span>
+            <span className="block">{phase.message}</span>
+          </p>
+        )}
+
+        <AskPanel
+          selectedId={phase.name === 'done' ? phase.document.id : null}
+          onOpen={reopen}
+        />
+
+        <HistoryList
+          documents={history}
+          selectedId={phase.name === 'done' ? phase.document.id : null}
+          deletingId={deletingId}
+          onSelect={reopen}
+          onDelete={requestDeletion}
+        />
+
+        {historyError !== null && (
+          <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">{historyError}</p>
+        )}
+      </div>
 
       {deletionTarget !== null && (
         <ConfirmDialog

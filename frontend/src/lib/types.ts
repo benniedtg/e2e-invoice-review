@@ -354,6 +354,170 @@ export interface AssistantAnswer {
   groups: AssistantGroup[]
 }
 
+/** How clearly one printed receipt field could be read. Unclear fields carry no value. */
+export type FieldStatus = 'clear' | 'unclear' | 'absent'
+
+export interface Fact<Value> {
+  value: Value | null
+  status: FieldStatus
+  note: string | null
+}
+
+export interface ServiceLineFacts {
+  description: Fact<string>
+  service_date: Fact<string>
+  item_code: Fact<string>
+  amount_charged: Fact<DecimalString>
+  amount_paid: Fact<DecimalString>
+}
+
+/** Stage 1 of a claim check: facts printed on one health receipt. */
+export interface ReceiptFacts {
+  is_health_receipt: boolean
+  reason: string
+  provider_name: Fact<string>
+  provider_type: Fact<string>
+  provider_number: Fact<string>
+  receipt_date: Fact<string>
+  total_charged: Fact<DecimalString>
+  total_paid: Fact<DecimalString>
+  lines: ServiceLineFacts[]
+}
+
+export interface ReceiptIssue {
+  code: string
+  line_index: number | null
+  field: string | null
+  message: string
+}
+
+export interface ExtractResponse {
+  facts: ReceiptFacts
+  issues: ReceiptIssue[]
+}
+
+export type ClaimSlot =
+  | 'insurer'
+  | 'product'
+  | 'service_date'
+  | 'service_description'
+  | 'cover_start_date'
+  | 'has_referral'
+  | 'benefits_used'
+  | 'amount_paid'
+
+/** Every answer the student has given, held only in the browser. */
+export interface ClaimAnswers {
+  insurer_id?: string | null
+  product_id?: string | null
+  cover_start_date?: string | null
+  has_referral?: boolean | null
+  service_dates?: Record<string, string>
+  service_descriptions?: Record<string, string>
+  amounts_paid?: Record<string, DecimalString>
+  benefits_used?: Record<string, DecimalString>
+}
+
+export type AnswerInput = 'choice' | 'date' | 'amount' | 'yes_no' | 'text'
+
+export interface QuestionOption {
+  value: string
+  label: string
+}
+
+export interface NextQuestion {
+  slot: ClaimSlot
+  line_index: number | null
+  prompt: string
+  input: AnswerInput
+  options: QuestionOption[]
+}
+
+export interface ClaimCitation {
+  document_id: string
+  document_title: string
+  section_number: string | null
+  section_title: string | null
+  page: number
+  quote: string
+}
+
+export type ConditionKind =
+  | 'coverage'
+  | 'exclusion'
+  | 'waiting_period'
+  | 'pre_existing_waiting_period'
+  | 'benefit_rate'
+  | 'per_service_limit'
+  | 'annual_limit'
+  | 'referral_required'
+  | 'provider_requirement'
+  | 'claim_time_limit'
+  | 'claim_document'
+
+export interface ClaimCondition {
+  kind: ConditionKind
+  applies: boolean
+  chunk_id: number
+  citation: ClaimCitation
+}
+
+export type ConditionState = 'satisfied' | 'not_satisfied' | 'unknown' | 'information'
+
+export interface ConditionResult {
+  condition: ClaimCondition
+  state: ConditionState
+  explanation: string
+}
+
+export type ClaimOutcome =
+  | 'appears_eligible'
+  | 'appears_excluded'
+  | 'appears_not_eligible'
+  | 'more_information_needed'
+
+export interface BenefitEstimate {
+  amount: DecimalString | null
+  steps: string[]
+  note: string | null
+}
+
+export interface ClaimLineResult {
+  line_index: number
+  description: string | null
+  amount_paid: DecimalString | null
+  outcome: ClaimOutcome
+  reasons: string[]
+  needs: ClaimSlot[]
+  conditions: ConditionResult[]
+  estimate: BenefitEstimate | null
+}
+
+export interface ClaimStep {
+  text: string
+  citation: ClaimCitation | null
+}
+
+export interface PolicyContext {
+  insurer: string
+  product: string
+  editions: { document_id: string; title: string; effective_basis: string }[]
+}
+
+/** The verified reading of a receipt, returned unchanged so new answers need no model call. */
+export type AssessmentState = { product_id: string } & Record<string, unknown>
+
+/** One chat turn: the next question, or a supported result. */
+export interface ClaimResponse {
+  stage: 'question' | 'result'
+  message: string
+  next_question: NextQuestion | null
+  lines: ClaimLineResult[]
+  claim_steps: ClaimStep[]
+  policy: PolicyContext | null
+  state: AssessmentState | null
+}
+
 /** Stable failure identifiers from `backend/app/api/errors.py`. */
 export type ErrorCode =
   | 'payload_too_large'
@@ -367,6 +531,9 @@ export type ErrorCode =
   | 'provider_error'
   | 'invalid_gl_suggestion'
   | 'invalid_assistant_output'
+  | 'not_a_health_receipt'
+  | 'knowledge_base_missing'
+  | 'stale_assessment'
   | 'pipeline_error'
   | 'internal_error'
   | 'network_error'

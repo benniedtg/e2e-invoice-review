@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
+from urllib.parse import urlsplit
 
 from azure.core.exceptions import ClientAuthenticationError
 from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
 from openai import AsyncOpenAI, OpenAIError
 from pydantic import BaseModel
-from pydantic_ai import Agent, BinaryContent, NativeOutput
+from pydantic_ai import Agent, BinaryContent, Embedder, NativeOutput
+from pydantic_ai.embeddings.openai import OpenAIEmbeddingModel
 from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.models.openai import (
   OpenAIResponsesModel,
@@ -17,6 +20,15 @@ from pydantic_ai.providers.openai import OpenAIProvider as PydanticOpenAIProvide
 from app.config import AzureOpenAISettings
 
 AZURE_OPENAI_MODEL = "gpt-5.6-terra"
+AZURE_OPENAI_EMBEDDING_MODEL = "text-embedding-3-large"
+
+EMBEDDING_BATCH_SIZE = 64
+"""Inputs per embeddings request, well inside the service's per-request limits."""
+
+CREDENTIAL_PROCESS_TIMEOUT = 60
+"""Seconds a local developer credential may take. Azure CLI often needs more than
+the SDK's 10-second default to hand out a token, which fails every call; managed
+identity in a deployment does not run a subprocess and is unaffected."""
 
 
 class AzureOpenAIError(Exception):
@@ -32,6 +44,11 @@ class AzureOpenAIProvider:
     if endpoint_path != "/openai/v1":
       endpoint = f"{endpoint}/openai/v1"
     self._base_url = f"{endpoint}/"
+    # A Foundry project endpoint serves the Responses API but not embeddings, and the
+    # services.ai.azure.com host refuses embeddings to the Cognitive Services OpenAI
+    # User role, so embeddings use the same account's openai.azure.com host.
+    account = (urlsplit(str(settings.endpoint)).hostname or "").split(".")[0]
+    self._embeddings_base_url = f"https://{account}.openai.azure.com/openai/v1/"
 
   def generate_text(self, prompt: str) -> str:
     """Send one text prompt and return the generated text."""
@@ -75,6 +92,13 @@ class AzureOpenAIProvider:
     except (AgentRunError, OpenAIError, ClientAuthenticationError):
       raise AzureOpenAIError("Azure OpenAI structured generation failed.") from None
 
+  def embed(self, texts: Sequence[str]) -> list[list[float]]:
+    """Embed texts in order, batching requests, and return one vector per text."""
+    try:
+      return asyncio.run(self._run_embeddings(list(texts)))
+    except (AgentRunError, OpenAIError, ClientAuthenticationError):
+      raise AzureOpenAIError("Azure OpenAI embedding request failed.") from None
+
   def _model(
     self,
     client: AsyncOpenAI,
@@ -89,7 +113,9 @@ class AzureOpenAIProvider:
 
   async def _run_text(self, prompt: str) -> str:
     """Run one text request inside closed Entra and OpenAI client scopes."""
-    async with DefaultAzureCredential() as credential:
+    async with DefaultAzureCredential(
+      process_timeout=CREDENTIAL_PROCESS_TIMEOUT,
+    ) as credential:
       token_provider = get_bearer_token_provider(
         credential,
         "https://ai.azure.com/.default",
@@ -111,7 +137,9 @@ class AzureOpenAIProvider:
     output_type: type[StructuredOutput],
   ) -> StructuredOutput:
     """Run one strict request inside closed Entra and OpenAI client scopes."""
-    async with DefaultAzureCredential() as credential:
+    async with DefaultAzureCredential(
+      process_timeout=CREDENTIAL_PROCESS_TIMEOUT,
+    ) as credential:
       token_provider = get_bearer_token_provider(
         credential,
         "https://ai.azure.com/.default",
@@ -126,3 +154,29 @@ class AzureOpenAIProvider:
           output_type=NativeOutput(output_type, strict=True),
         )
         return (await agent.run(prompt)).output
+
+  async def _run_embeddings(self, texts: list[str]) -> list[list[float]]:
+    """Embed every batch inside one closed Entra and OpenAI client scope."""
+    async with DefaultAzureCredential(
+      process_timeout=CREDENTIAL_PROCESS_TIMEOUT,
+    ) as credential:
+      token_provider = get_bearer_token_provider(
+        credential,
+        "https://ai.azure.com/.default",
+      )
+      async with AsyncOpenAI(
+        base_url=self._embeddings_base_url,
+        api_key=token_provider,
+      ) as client:
+        embedder = Embedder(
+          OpenAIEmbeddingModel(
+            AZURE_OPENAI_EMBEDDING_MODEL,
+            provider=PydanticOpenAIProvider(openai_client=client),
+          )
+        )
+        vectors: list[list[float]] = []
+        for start in range(0, len(texts), EMBEDDING_BATCH_SIZE):
+          batch = texts[start : start + EMBEDDING_BATCH_SIZE]
+          result = await embedder.embed_documents(batch)
+          vectors.extend(list(vector) for vector in result.embeddings)
+        return vectors

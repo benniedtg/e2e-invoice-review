@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.api.claims import router as claims_router
 from app.api.errors import ErrorCode, error_response, register_exception_handlers
 from app.api.routes import router
 from app.api.uploads import MAX_REQUEST_BYTES, OVERSIZED_MESSAGE
@@ -47,6 +48,7 @@ def create_app() -> FastAPI:
 
   register_exception_handlers(app)
   app.include_router(router)
+  app.include_router(claims_router)
 
   # Mounted last so the API routes above keep their paths. Absent during local
   # development, where the web interface runs on its own dev server.

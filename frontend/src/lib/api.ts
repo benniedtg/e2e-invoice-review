@@ -1,12 +1,18 @@
 import { API_BASE_URL } from './env.ts'
 import type {
+  AssessmentState,
   AssistantAnswer,
+  ClaimAnswers,
+  ClaimResponse,
   CorrectionEmailDraft,
   DocumentCorrections,
   DocumentResponse,
   DocumentSummary,
   ErrorCode,
+  ExtractResponse,
   GeneralLedgerAccount,
+  NextQuestion,
+  ReceiptFacts,
   StepEvent,
 } from './types.ts'
 
@@ -161,6 +167,48 @@ export function askAssistant(question: string): Promise<AssistantAnswer> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ question }),
   })
+}
+
+/** Read one health receipt; the server never stores it. */
+export function extractClaimReceipt(file: File): Promise<ExtractResponse> {
+  const body = new FormData()
+  body.append('file', file)
+  return request<ExtractResponse>('/api/claims/extract', { method: 'POST', body })
+}
+
+function postJson<Payload>(path: string, payload: unknown): Promise<Payload> {
+  return request<Payload>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+/** Ask for the next missing fact, or retrieve the policy evidence and decide. */
+export function assessClaim(facts: ReceiptFacts, answers: ClaimAnswers): Promise<ClaimResponse> {
+  return postJson<ClaimResponse>('/api/claims/assess', { facts, answers })
+}
+
+/** Decide again from a verified assessment after a new answer, without a model reading. */
+export function reassessClaim(
+  facts: ReceiptFacts,
+  answers: ClaimAnswers,
+  state: AssessmentState,
+): Promise<ClaimResponse> {
+  return postJson<ClaimResponse>('/api/claims/reassess', { facts, answers, state })
+}
+
+/** Map a typed reply onto the question it answers, or null when it does not. */
+export function interpretClaimAnswer(
+  question: NextQuestion,
+  text: string,
+): Promise<{ value: string | null }> {
+  return postJson<{ value: string | null }>('/api/claims/interpret', { question, text })
+}
+
+/** The policy PDF a citation points into. */
+export function policyDocumentUrl(documentId: string): string {
+  return `${API_BASE_URL}/api/policy/documents/${encodeURIComponent(documentId)}/file`
 }
 
 interface StreamFrame {
