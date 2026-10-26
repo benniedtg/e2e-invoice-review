@@ -5,6 +5,8 @@ import { ACCEPTED_MIME_TYPES, MAX_UPLOAD_BYTES } from '../lib/api.ts'
 interface UploadPanelProps {
   isProcessing: boolean
   onProcess: (file: File) => void
+  title?: string
+  actionLabel?: string
 }
 
 function describeSize(bytes: number): string {
@@ -25,7 +27,12 @@ function findLocalProblem(file: File): string | null {
   return null
 }
 
-export default function UploadPanel({ isProcessing, onProcess }: UploadPanelProps) {
+export default function UploadPanel({
+  isProcessing,
+  onProcess,
+  title = 'Drop an invoice or receipt here',
+  actionLabel = 'Process document',
+}: UploadPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
@@ -57,7 +64,7 @@ export default function UploadPanel({ isProcessing, onProcess }: UploadPanelProp
           select(event.dataTransfer.files[0])
         }}
       >
-        <p className="text-lg font-medium">Drop an invoice or receipt here</p>
+        <p className="text-lg font-medium">{title}</p>
         <p className="mt-1 text-sm text-muted">PDF, PNG, or JPEG. Up to 4 MB.</p>
 
         <input
@@ -99,7 +106,7 @@ export default function UploadPanel({ isProcessing, onProcess }: UploadPanelProp
             onClick={() => onProcess(file)}
             disabled={isProcessing}
           >
-            {isProcessing ? 'Processing…' : 'Process document'}
+            {isProcessing ? 'Processing…' : actionLabel}
           </button>
         </div>
       )}

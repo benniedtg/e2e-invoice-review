@@ -9,6 +9,7 @@ Pricing checked on 2026-07-19 for the project's Document Intelligence resource a
 | Azure resource group | Platform container | €0 | €0 |
 | Azure Document Intelligence | F0 in West Europe | €0 | First 500 analyzed pages per month are free |
 | Azure OpenAI `gpt-5.6-terra` | Global Standard in Sweden Central | $0 | Two token-metered calls per upload; an optional third call only when a correction email is requested |
+| Azure OpenAI `text-embedding-3-large` | Global Standard | $0 | Student claims only: policy ingest once, then one request per assessment |
 | FastAPI, React, SQLite, uploaded files | Developer machine | No Azure charge | Local resources only |
 | Hosting, managed database, object storage | Not deployed | €0 | €0 |
 
@@ -76,6 +77,42 @@ one question                        = $0.0270, about 3 cents
 ```
 
 `scripts/evaluate_assistant.py` makes only the filter call, once for each of the 12 labelled questions: 12 × $0.0095, about **$0.11**.
+
+## Student claims cost
+
+A claim check sends the receipt to Azure OpenAI once; every later call is text only. Document Intelligence is not used. Embeddings come from the `text-embedding-3-large` Global Standard deployment on the same resource, at $0.13 per million tokens (`text-embedding-3-large-glbl Tokens`, $0.00013 per 1K, checked 2026-10-26).
+
+The sizes below were recorded from live calls on 2026-10-26, counting characters ÷ 4 as tokens and including the strict output schema sent with each call. A receipt PDF also puts its extracted text and a page image in context; about 1,500 tokens is assumed for a one-page receipt.
+
+| Call | When | Glasses: 3 lines, nib Premium | GP visit: 1 line, nib Core |
+| --- | --- | ---: | ---: |
+| Receipt reading | Once per upload | ~2,600 in / ~370 out | ~2,600 in / ~220 out |
+| Embeddings | Once per assessment | ~810 | ~200 |
+| Conditions reading | Once per assessment | ~24,400 in / ~770 out | ~7,800 in / ~480 out |
+| Message | Each assessment and each answer | ~620 in / ~170 out | ~420 in / ~120 out |
+
+```text
+glasses receipt on nib Premium, one follow-up answer:
+receipt:     2,600 × $2.50 / 1M +   370 × $15.00 / 1M = $0.0121
+embeddings:    810 × $0.13 / 1M                         = $0.0001
+conditions: 24,400 × $2.50 / 1M +   770 × $15.00 / 1M = $0.0726
+messages:  2 × (620 × $2.50 / 1M + 170 × $15.00 / 1M)  = $0.0082
+one conversation                                        = $0.0930, about 9 cents
+
+GP receipt on nib Core, no follow-up:
+receipt:     2,600 × $2.50 / 1M +   220 × $15.00 / 1M = $0.0098
+conditions:  7,800 × $2.50 / 1M +   480 × $15.00 / 1M = $0.0267
+message:       420 × $2.50 / 1M +   120 × $15.00 / 1M = $0.0029
+one conversation                                        = $0.0394, about 4 cents
+```
+
+- The conditions reading dominates. Each line carries its own 20 to 27 retrieved passages, about 8,000 tokens a line, and a passage two lines share is sent once for each.
+- The insurer and product questions make no model call.
+- An answer the server decides in code (cover start date, benefits already used, referral, amount paid) re-verifies the stored conditions and costs one message, about 0.4 cents. A new service description or date changes what is searched, so it runs retrieval and the conditions reading again.
+- A typed reply adds one interpretation call of about 300 input and 20 output tokens, about $0.001. Quick-reply buttons cost nothing.
+- Loading the policies embeds 495 chunks once, about 83,000 tokens × $0.13 / 1M, about **$0.011** for all five editions. An unchanged file is skipped on later runs.
+
+`scripts/evaluate_claims.py` reads 10 receipts (about $0.11), makes 11 conditions readings, four of them on the three-line glasses receipt (about $0.53), writes about 20 messages (about $0.08), and embeds its recall searches (under $0.001): about **$0.72** per run.
 
 ## Recheck the calculation
 

@@ -23,8 +23,9 @@ interface DocumentPreviewProps {
  * A browser set to download PDFs rather than open them turns an `<iframe>`
  * into a save prompt and leaves the reviewer with an empty panel, so the
  * source is rasterized here and never handed to the browser's PDF viewer.
+ * With `page`, only that page is drawn, for example the page a citation quotes.
  */
-function PdfPreview({ url }: { url: string }) {
+export function PdfPreview({ url, page }: { url: string; page?: number }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [failure, setFailure] = useState<string | null>(null)
 
@@ -39,18 +40,20 @@ function PdfPreview({ url }: { url: string }) {
 
     async function draw(target: HTMLDivElement): Promise<void> {
       const pdf = await task.promise
-      for (let number = 1; number <= pdf.numPages; number += 1) {
-        const page = await pdf.getPage(number)
+      const first = page ?? 1
+      const last = Math.min(page ?? pdf.numPages, pdf.numPages)
+      for (let number = first; number <= last; number += 1) {
+        const pdfPage = await pdf.getPage(number)
         if (cancelled) {
           return
         }
-        const viewport = page.getViewport({ scale: RENDER_SCALE })
+        const viewport = pdfPage.getViewport({ scale: RENDER_SCALE })
         const canvas = window.document.createElement('canvas')
         canvas.width = viewport.width
         canvas.height = viewport.height
         canvas.className = 'w-full rounded-lg border border-line bg-white'
         target.append(canvas)
-        await page.render({ canvas, viewport }).promise
+        await pdfPage.render({ canvas, viewport }).promise
       }
     }
 
@@ -66,7 +69,7 @@ function PdfPreview({ url }: { url: string }) {
       container.replaceChildren()
       void task.destroy()
     }
-  }, [url])
+  }, [url, page])
 
   return (
     <>

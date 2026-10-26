@@ -10,6 +10,12 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.accounting import GeneralLedgerCatalogError
 from app.assistant import AssistantOutputError
+from app.claims.service import (
+  InvalidClaimRequestError,
+  KnowledgeBaseMissingError,
+  NotHealthReceiptError,
+  StaleAssessmentError,
+)
 from app.config import ConfigurationError
 from app.correction_email import CorrectionEmailDraftingError
 from app.document_review import InvalidCorrectionError
@@ -33,6 +39,9 @@ class ErrorCode(StrEnum):
   PROVIDER_ERROR = "provider_error"
   INVALID_GL_SUGGESTION = "invalid_gl_suggestion"
   INVALID_ASSISTANT_OUTPUT = "invalid_assistant_output"
+  NOT_A_HEALTH_RECEIPT = "not_a_health_receipt"
+  KNOWLEDGE_BASE_MISSING = "knowledge_base_missing"
+  STALE_ASSESSMENT = "stale_assessment"
   PIPELINE_ERROR = "pipeline_error"
   INTERNAL_ERROR = "internal_error"
 
@@ -85,8 +94,17 @@ def classify_exception(exc: Exception) -> tuple[ErrorDetail, int]:
       message="Request body is invalid.",
     ), 422
 
-  if isinstance(exc, InvalidCorrectionError):
+  if isinstance(exc, InvalidCorrectionError | InvalidClaimRequestError):
     return ErrorDetail(code=ErrorCode.INVALID_REQUEST, message=str(exc)), 422
+
+  if isinstance(exc, NotHealthReceiptError):
+    return ErrorDetail(code=ErrorCode.NOT_A_HEALTH_RECEIPT, message=str(exc)), 422
+
+  if isinstance(exc, StaleAssessmentError):
+    return ErrorDetail(code=ErrorCode.STALE_ASSESSMENT, message=str(exc)), 409
+
+  if isinstance(exc, KnowledgeBaseMissingError):
+    return ErrorDetail(code=ErrorCode.KNOWLEDGE_BASE_MISSING, message=str(exc)), 503
 
   if isinstance(exc, ReviewConflictError):
     return ErrorDetail(code=ErrorCode.REVIEW_CONFLICT, message=str(exc)), 409
@@ -142,6 +160,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     RequestError,
     RequestValidationError,
     InvalidCorrectionError,
+    InvalidClaimRequestError,
+    NotHealthReceiptError,
+    StaleAssessmentError,
+    KnowledgeBaseMissingError,
     ReviewConflictError,
     ReviewInputError,
     ConfigurationError,

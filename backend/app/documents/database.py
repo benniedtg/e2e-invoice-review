@@ -9,6 +9,8 @@ from typing import Any
 from sqlalchemy import Engine, create_engine, event, inspect, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
+# Importing the claims models also registers the policy corpus tables on Base.
+from app.claims.models import POLICY_SEARCH_DDL
 from app.documents.keys import document_facts
 from app.documents.models import Base, DocumentRecord
 
@@ -51,6 +53,8 @@ def initialize_database(database_engine: Engine = engine) -> None:
   """Create the data directory, any missing tables, and any missing columns."""
   DATA_DIRECTORY.mkdir(parents=True, exist_ok=True)
   Base.metadata.create_all(database_engine)
+  with database_engine.begin() as connection:
+    connection.execute(text(POLICY_SEARCH_DDL))
   if _add_query_columns(database_engine):
     _backfill_query_columns(database_engine)
 

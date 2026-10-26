@@ -24,6 +24,8 @@ The committed set contains eleven PDFs and two PNG images. VAT values are fictio
 
 `assistant_questions.json` labels 12 review-history questions with the typed filter each should produce. `scripts/evaluate_assistant.py` sends only the questions, never a document, and resolves relative dates against a fixed 2026-08-15.
 
+`claims/receipts/` holds 10 fictional health receipts for the Student claims checker: the broken-glasses story, a GP visit, a vague "Consultation", pharmacy, dental, physio, sunglasses, a blurred optical scan, a café receipt, and glasses bought in 2024. Regenerate them with `uv run python scripts/generate_claim_receipts.py`. `claims/manifest.json` labels what each receipt shows (field status and value), and for each policy check the edition, the questions asked, the sections retrieval must find, the conditions, each line's outcome, and the exact benefit. Labels come from the policy text, with the section in each check's `note`; a line the policy leaves ambiguous is left unlabelled. `scripts/evaluate_claims.py` scores the pipeline against them and needs the policies ingested first. Real receipts are only ever checked through the interface, never committed.
+
 Microsoft's official sample invoice is downloaded locally for the first Azure provider check and ignored by Git:
 
 ```bash
